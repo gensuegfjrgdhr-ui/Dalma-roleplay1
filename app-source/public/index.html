@@ -188,9 +188,9 @@ const animeAvatarNames={
  'naruto':'Naruto Uzumaki','kakashi':'Kakashi Hatake','sakura':'Sakura Haruno','sasuke':'Sasuke Uchiha','itachi':'Itachi Uchiha','shikamaru':'Shikamaru Nara',
  'tanjiro':'Tanjiro Kamado','zenitsu':'Zenitsu Agatsuma','inosuke':'Inosuke Hashibira','giyu':'Giyu Tomioka','rengoku':'Kyojuro Rengoku','shinobu':'Shinobu Kocho',
  'megumi':'Megumi Fushiguro','nobara':'Nobara Kugisaki','yuta':'Yuta Okkotsu','maki':'Maki Zenin','eren':'Eren Yeager','armin':'Armin Arlert','levi':'Levi Ackerman','hange':'Hange Zoe',
- 'denji':'Denji','power':'Power Chainsaw Man','aki':'Aki Hayakawa','makima':'Makima','loid':'Loid Forger','yor':'Yor Forger','anya':'Anya Forger',
- 'frieren':'Frieren','fern':'Fern Frieren','marin':'Marin Kitagawa','wakana':'Wakana Gojo','ichigo':'Ichigo Kurosaki','rukia':'Rukia Kuchiki',
- 'light':'Light Yagami','l':'L Lawliet','ryuk':'Ryuk','saitama':'Saitama','genos':'Genos','todoroki':'Shoto Todoroki','bakugo':'Katsuki Bakugo','deku':'Izuku Midoriya','uraraka':'Ochaco Uraraka','hinata':'Hinata Hyuga','kyo':'Kyo Sohma','tohru':'Tohru Honda','howl':'Howl Jenkins Pendragon','chihiro':'Chihiro Ogino','sophie':'Sophie Hatter','kiki':'Kiki'
+ 'denji':'Denji','power':'Power','aki':'Aki Hayakawa','makima':'Makima','loid':'Loid Forger','yor':'Yor Forger','anya':'Anya Forger',
+ 'frieren':'Frieren','fern':'Fern','marin':'Marin Kitagawa','wakana':'Wakana Gojo','ichigo':'Ichigo Kurosaki','rukia':'Rukia Kuchiki',
+ 'light':'Light Yagami','l':'L','ryuk':'Ryuk','saitama':'Saitama','genos':'Genos','todoroki':'Shoto Todoroki','bakugo':'Katsuki Bakugo','deku':'Izuku Midoriya','uraraka':'Ochaco Uraraka','hinata':'Hinata Hyuga','kyo':'Kyo Sohma','tohru':'Tohru Honda','howl':'Howl Jenkins Pendragon','chihiro':'Chihiro Ogino','sophie':'Sophie Hatter','kiki':'Kiki'
 };
 function setAvatarImage(node,url,name,cacheKey){
  if(!node||!url)return;
@@ -342,10 +342,10 @@ async function resolveCharacterAvatar(c){
     for(const q of queries){
      try{
       const r=await avatarFetch('https://jikan.lucashdo.com/v1/characters?q='+encodeURIComponent(q));
-      if(r.ok){const j=await r.json();const list=j.data||[];const exact=list.find(x=>normalize(x.name)===normalize(q));const chosen=exact||list.find(x=>normalize(x.name).includes(normalize(q)))||list[0];url=chosen?.imageUrl||''}
+      if(r.ok){const j=await r.json();const list=j.data||[];const exact=list.find(x=>normalize(x.name)===normalize(q));const close=list.find(x=>normalize(x.name).startsWith(normalize(q))||normalize(q).startsWith(normalize(x.name)));const chosen=exact||close;url=chosen?.imageUrl||''}
       if(!url){
        const fallback=await avatarFetch('https://api.jikan.moe/v4/characters?q='+encodeURIComponent(q)+'&limit=8');
-       if(fallback.ok){const j=await fallback.json();const list=j.data||[];const exact=list.find(x=>normalize(x.name)===normalize(q));const chosen=exact||list.find(x=>normalize(x.name).includes(normalize(q)))||list[0];url=chosen?.images?.webp?.image_url||chosen?.images?.jpg?.image_url||''}
+       if(fallback.ok){const j=await fallback.json();const list=j.data||[];const exact=list.find(x=>normalize(x.name)===normalize(q));const close=list.find(x=>normalize(x.name).startsWith(normalize(q))||normalize(q).startsWith(normalize(x.name)));const chosen=exact||close;url=chosen?.images?.webp?.image_url||chosen?.images?.jpg?.image_url||''}
       }
       if(url)break;
      }catch(e){}
@@ -370,7 +370,7 @@ async function resolveCharacterAvatar(c){
     ];
     for(const api of queries){
      try{
-      const r=await fetch(api);
+      const r=await avatarFetch(api);
       if(r.ok){
        const j=await r.json(),pages=Object.values(j.query?.pages||{});
        const tokens=normalize(c.name).match(/[a-zа-яё]{3,}/g)||[];
