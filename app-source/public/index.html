@@ -180,13 +180,13 @@ const animeAvatarNames={
  'frieren':'Frieren','fern':'Fern Frieren','marin':'Marin Kitagawa','wakana':'Wakana Gojo','ichigo':'Ichigo Kurosaki','rukia':'Rukia Kuchiki',
  'light':'Light Yagami','l':'L Lawliet','ryuk':'Ryuk','saitama':'Saitama','genos':'Genos','todoroki':'Shoto Todoroki','bakugo':'Katsuki Bakugo','deku':'Izuku Midoriya','uraraka':'Ochaco Uraraka','hinata':'Hinata Hyuga','kyo':'Kyo Sohma','tohru':'Tohru Honda','howl':'Howl Jenkins Pendragon','chihiro':'Chihiro Ogino','sophie':'Sophie Hatter','kiki':'Kiki'
 };
-function setAvatarImage(node,url,name){
+function setAvatarImage(node,url,name,cacheKey){
  if(!node||!url)return;
  let img=node.querySelector('img');
  if(!img){img=document.createElement('img');img.alt=name||'Аватар персонажа';img.loading='lazy';node.replaceChildren(img)}
  img.referrerPolicy='no-referrer';
  img.onload=()=>{node.classList.add('has-avatar')};
- img.onerror=()=>{img.remove();node.classList.remove('has-avatar');node.textContent=(name||'✦').slice(0,1)};
+ img.onerror=()=>{img.remove();node.classList.remove('has-avatar');if(cacheKey){avatarCache.delete(cacheKey);try{localStorage.removeItem('rd_avatar_v2_'+cacheKey)}catch(e){}}node.textContent=(name||'✦').slice(0,1)};
  img.src=url;
 }
 const avatarPageTitles={
@@ -316,13 +316,14 @@ async function resolveCharacterAvatar(c){
  if(!c)return '';
  if(c.image||c.avatar)return c.image||c.avatar;
  const key=c.id||c.name;
- if(avatarCache.has(key))return avatarCache.get(key);
- try{const saved=localStorage.getItem('rd_avatar_'+key);if(saved){avatarCache.set(key,saved);return saved}}catch(e){}
- if(avatarPending.has(key))return avatarPending.get(key);
+ const cacheKey='rd_avatar_v2_'+key;
+ if(avatarCache.has(cacheKey))return avatarCache.get(cacheKey);
+ try{const saved=localStorage.getItem(cacheKey);if(saved){avatarCache.set(cacheKey,saved);return saved}}catch(e){}
+ if(avatarPending.has(cacheKey))return avatarPending.get(cacheKey);
+ const normalize=s=>String(s||'').toLocaleLowerCase().normalize('NFD').replace(/[\\u0300-\\u036f]/g,'').replace(/[^a-z0-9а-яё]/g,'');
  const task=(async()=>{
   try{
    let url='';
-   // Curated exact article mapping: one known page per catalog character, no fuzzy name guessing.
    const pageTitle=avatarPageTitles[c.id];
    if(pageTitle){
     try{
@@ -334,71 +335,35 @@ async function resolveCharacterAvatar(c){
       url=pages.find(x=>x.thumbnail?.source)?.thumbnail?.source||'';
      }
     }catch(e){}
-    if(!url){
-     try{
-      const endpoint='https://en.wikipedia.org/api/rest_v1/page/summary/'+encodeURIComponent(pageTitle);
-      const response=await fetch(endpoint,{headers:{'accept':'application/json'}});
-      if(response.ok){const page=await response.json();url=page.originalimage?.source||page.thumbnail?.source||''}
-     }catch(e){}
-    }
    }
-   const isAnime=c.category==='Аниме';
-   if(isAnime){
-    const queries=[animeAvatarNames[c.id],c.name].filter(Boolean);
-    for(const q of queries){
+   if(!url&&c.category==='Аниме'){
+    const expected=animeAvatarNames[c.id];
+    if(expected){
      try{
-      const r=await fetch('https://jikan.lucashdo.com/v1/characters?q='+encodeURIComponent(q));
-      if(r.ok){const j=await r.json();const found=(j.data||[]).find(x=>x.imageUrl);url=found?.imageUrl||''}
-      if(!url){
-       const fallback=await fetch('https://api.jikan.moe/v4/characters?q='+encodeURIComponent(q)+'&limit=5');
-       if(fallback.ok){const j=await fallback.json();const found=(j.data||[]).find(x=>x.images?.webp?.image_url||x.images?.jpg?.image_url);url=found?.images?.webp?.image_url||found?.images?.jpg?.image_url||''}
-      }
-      if(url)break;
-     }catch(e){}
-     await new Promise(resolve=>setTimeout(resolve,350));
-    }
-   }
-   if(!url){
-    const searchTerms=[c.name+' '+(c.project||''),c.project+' '+c.name,c.name].filter(Boolean);
-    for(const term of searchTerms){
-     try{
-      const api='https://commons.wikimedia.org/w/api.php?action=query&generator=search&gsrsearch='+encodeURIComponent(term+' filetype:bitmap')+'&gsrnamespace=6&gsrlimit=8&prop=imageinfo&iiprop=url&iiurlwidth=480&format=json&origin=*';
-      const r=await fetch(api);
-      if(r.ok){
-       const j=await r.json();
-       const pages=Object.values(j.query?.pages||{});
-       const usable=pages.filter(p=>p.imageinfo?.[0]?.thumburl||p.imageinfo?.[0]?.url);
-       const preferred=usable.find(p=>{const title=(p.title||'').toLowerCase();return title.includes((c.name||'').split(' ')[0].toLowerCase())})||usable[0];
-       url=preferred?.imageinfo?.[0]?.thumburl||preferred?.imageinfo?.[0]?.url||'';
+      const response=await fetch('https://api.jikan.moe/v4/characters?q='+encodeURIComponent(expected)+'&limit=10');
+      if(response.ok){
+       const data=await response.json();
+       const exact=(data.data||[]).find(x=>normalize(x.name)===normalize(expected));
+       url=exact?.images?.webp?.image_url||exact?.images?.jpg?.image_url||'';
       }
      }catch(e){}
-     if(url)break;
     }
    }
-   if(!url){
-    const queries=[
-     'https://ru.wikipedia.org/w/api.php?action=query&generator=search&gsrsearch='+encodeURIComponent('"'+c.name+'" '+(c.project||''))+'&gsrnamespace=0&gsrlimit=8&prop=pageimages&piprop=thumbnail&pithumbsize=480&format=json&origin=*',
-     'https://en.wikipedia.org/w/api.php?action=query&generator=search&gsrsearch='+encodeURIComponent(c.name+' '+(c.project||''))+'&gsrnamespace=0&gsrlimit=8&prop=pageimages&piprop=thumbnail&pithumbsize=480&format=json&origin=*'
-    ];
-    for(const api of queries){
-     try{const r=await fetch(api);if(r.ok){const j=await r.json();const pages=Object.values(j.query?.pages||{});url=pages.find(p=>p.thumbnail?.source)?.thumbnail?.source||''}}
-     catch(e){}
-     if(url)break;
-    }
+   if(url){
+    avatarCache.set(cacheKey,url);
+    try{localStorage.setItem(cacheKey,url)}catch(e){}
    }
-   if(url){avatarCache.set(key,url);try{localStorage.setItem('rd_avatar_'+key,url)}catch(e){}}
    return url;
   }catch(e){return ''}
  })();
- avatarRequestQueue=Promise.resolve();
- avatarPending.set(key,task);
- const result=await task;avatarPending.delete(key);return result;
+ avatarPending.set(cacheKey,task);
+ const result=await task;avatarPending.delete(cacheKey);return result;
 }
 function attachCharacterAvatar(node,c){
  if(!node||!c)return;
  const own=c.image||c.avatar;
  if(own){setAvatarImage(node,own,c.name);return}
- resolveCharacterAvatar(c).then(url=>{if(url)setAvatarImage(node,url,c.name)});
+ resolveCharacterAvatar(c).then(url=>{if(url)setAvatarImage(node,url,c.name,c.id||c.name)});
 }
 
 const catalog=[
