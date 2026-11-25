@@ -193,7 +193,7 @@ function setAvatarImage(node,url,name,cacheKey){
  if(!img){img=document.createElement('img');img.alt=name||'Аватар персонажа';img.loading='lazy';node.replaceChildren(img)}
  img.referrerPolicy='no-referrer';
  img.onload=()=>{node.classList.add('has-avatar')};
- img.onerror=()=>{img.remove();node.classList.remove('has-avatar');if(cacheKey){avatarCache.delete('rd_avatar_v3_'+cacheKey);try{localStorage.removeItem('rd_avatar_v3_'+cacheKey)}catch(e){}}node.textContent=(name||'✦').slice(0,1)};
+ img.onerror=()=>{img.remove();node.classList.remove('has-avatar');if(cacheKey){avatarCache.delete('rd_avatar_v4_'+cacheKey);try{localStorage.removeItem('rd_avatar_v4_'+cacheKey)}catch(e){}}node.textContent=(name||'✦').slice(0,1)};
  img.src=url;
 }
 const avatarPageTitles={
@@ -323,7 +323,7 @@ async function resolveCharacterAvatar(c){
  if(!c)return '';
  if(c.image||c.avatar)return c.image||c.avatar;
  const key=c.id||c.name;
- const cacheKey='rd_avatar_v3_'+key;
+ const cacheKey='rd_avatar_v4_'+key;
  if(avatarCache.has(cacheKey))return avatarCache.get(cacheKey);
  try{const saved=localStorage.getItem(cacheKey);if(saved){avatarCache.set(cacheKey,saved);return saved}}catch(e){}
  if(avatarPending.has(cacheKey))return avatarPending.get(cacheKey);
