@@ -3,6 +3,7 @@
   "appName": "Dalma Roleplay",
   "webDir": "app-source/public",
   "server": {
+    "url": "https://gensuegfjrgdhr-ui.github.io/Dalma-roleplay1/",
     "androidScheme": "https"
   }
 }
