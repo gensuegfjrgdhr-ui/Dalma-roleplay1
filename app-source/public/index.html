@@ -388,8 +388,21 @@ async function resolveCharacterAvatar(c){
  avatarPending.set(cacheKey,task);
  const result=await task;avatarPending.delete(cacheKey);return result;
 }
+const strangerThingsAvatarOverrides={
+ 'st-eleven':'https://dnm.nflximg.net/api/v6/a01MIaQTUgSJoLaS_OCn68Eg3hU/AAAAQUr5ej8FJYqN0ePN7DJq4J8pMDFi0XkdGHbcnkT1WHDY6XcJf9MRqOhp0-Tr-MpRWtg8J7u16mWLmH1h6ubILBBhOrGdPuZQlAtvL-Oy7DNuHogsjxpjE51EYz9-T8hn7z5HyxZsTQ5AyMAdct6kBqhwJCM.jpg?r=b8e',
+ 'st-mike':'https://dnm.nflximg.net/api/v6/a01MIaQTUgSJoLaS_OCn68Eg3hU/AAAAQdEFxav3nWzOivjXw5M3itkdc1qNNxDzAM57QKd12eWYEbsx1r35zQUeUoozYPKnjQFBuMLvgTnu1dirn1rFeBm5Yl2aorznC1etUoeAyfaQjScXXklv2QoQnqwYAHCOdMLWGC4uKdDRa7Pt8SKEL1iZAJk.jpg?r=807',
+ 'st-dustin':'https://dnm.nflximg.net/api/v6/a01MIaQTUgSJoLaS_OCn68Eg3hU/AAAAQRF19CjCl1LGQnQU7r9a8ESVC_zESOV7uzo7ouj6PfwsvAn0Bx02wXu-zxSVIZlo5iaTNXx-0jRzJvyMJOhOSUxlQp-RxsfZ0JuDWgJ65c9PhU3xz_sxV902NcHpl4FkIQEyT2uF-OmBgmo0FxsMthkewiM.jpg?r=728',
+ 'st-will':'https://dnm.nflximg.net/api/v6/a01MIaQTUgSJoLaS_OCn68Eg3hU/AAAAQYDrL5ssnRcq_q72qpugcTg1pAVd36us34Gx1awopZmTSAxXZP_6LAeMYv0ZJxa1bUIw0NH6t8JO80zLiT7HhECpBDHNEGwluK5nQ3A1UMqYb94XcVmj4ckGXE4HFcgoModowRa6JNlaz95Tgop03K8LjvE.jpg?r=a85',
+ 'st-max':'https://dnm.nflximg.net/api/v6/a01MIaQTUgSJoLaS_OCn68Eg3hU/AAAAQaEot3JHq9ar6z7PhYdMiRE7PxxECd6TCWDAn6FKh5IV4tsLt7dsuRtQA_sEh2v_IPbUb-0i3ObIcfej38bd2nPv5dlA-y1A7VRoVGveK5JxyvbZA6Dt3BlD9NpRteU5-noPInR-CGr9n21ZR-9Llw0WoDM.jpg?r=f73',
+ 'st-steve':'https://dnm.nflximg.net/api/v6/a01MIaQTUgSJoLaS_OCn68Eg3hU/AAAAQUAIueQOmTI_yreTCbFktcXl7ZwwpedA7nvKxCeoM4elaTP3nwePvYEKBXh7mDaBdKEhhW0wEXhpGx9GrjE1F1MjwNeHz5_WsM-QqXlhdy8sWzs-sTLm1LSS14WeSk0Btt7wSc911o6U1bavGAGCB_e1DsA.jpg?r=849',
+ 'st-robin':'https://dnm.nflximg.net/api/v6/a01MIaQTUgSJoLaS_OCn68Eg3hU/AAAAQcdPX5sMaevFrbs3n44mKkfLDr9bNL_ZnHIGN7AmLc3csKOHo67S6S-b98JDzuDeA8VseLKCUPxyRNw5ikS_nlE1S_1x_xCZ4lsMjmN4YruMiiU_y9iNydNTi5vflNqY6ce2LN-hI6oQ28eihwzz-uEXPPo.jpg?r=2e3',
+ 'st-eddie':'https://dnm.nflximg.net/api/v6/a01MIaQTUgSJoLaS_OCn68Eg3hU/AAAAQRQSBk5RPXUY4zQ_lsmylzztfceX2Yio4kvJ-xW8BMajbjI8JlhENedWd9l32DdntrxHsX55hQuL0HBX0MecyLrWuoHyDXpk9tpsQrYfq0BA0CPQ19TBZvw5M_HAEP-KtJMBIAjZGqevuLPQM8hISIQWMDA.jpg?r=e98',
+ 'st-vecna':'https://dnm.nflximg.net/api/v6/a01MIaQTUgSJoLaS_OCn68Eg3hU/AAAAQfO0XOh0PZlHGSF4svciNdbOiKObLY2TuUKbEZ6lB5EDCIuxVYx1a2fh26kgr2QTx_m5jH5SeQbR0B97SFErZC9LlJDFnvSaE_LorgNAxL9mkYI554PGeenZWB03PSgswM1IBMXIHetg2tNfzdiLGEyfyqk.jpg?r=fc3'
+};
 function attachCharacterAvatar(node,c){
  if(!node||!c)return;
+ const curated=strangerThingsAvatarOverrides[c.id];
+ if(curated){setAvatarImage(node,curated,c.name,c.id);return}
  const own=c.image||c.avatar;
  if(own){setAvatarImage(node,own,c.name);return}
  resolveCharacterAvatar(c).then(url=>{if(url)setAvatarImage(node,url,c.name,c.id||c.name)});
