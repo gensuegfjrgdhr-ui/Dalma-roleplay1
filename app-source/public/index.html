@@ -117,7 +117,7 @@ const profile='Имя: '+name+'\nВселенная: '+(character?.project||char
 const transcript=(messages||[]).slice(-18).map(m=>(m.role==='user'?'Пользователь':'Персонаж')+': '+String(m.content||'').slice(0,1800)).join('\n\n');
 const prompt='### Инструкция\n'+system+'\n\n### Карточка персонажа\n'+profile+'\n\n### История диалога\n'+transcript+'\n\n### Ответ '+name+'\n';
 const headers={'Content-Type':'application/json','apikey':'0000000000','Client-Agent':'DalmaRoleplay:1.0:github.com/gensuegfjrgdhr-ui/Dalma-roleplay1'};
-const submit=await fetch('https://aihorde.net/api/v2/generate/text/async',{method:'POST',headers,body:JSON.stringify({prompt,params:{max_length:380,max_context_length:2048,temperature:0.82,top_p:0.92,rep_pen:1.08},models:[],workers:1,slow_workers:true})});
+const submit=await fetch('https://aihorde.net/api/v2/generate/text/async',{method:'POST',headers,body:JSON.stringify({prompt,params:{max_length:380,max_context_length:2048,temperature:0.82,top_p:0.92,rep_pen:1.08},models:[],slow_workers:true})});
 if(!submit.ok){let detail='';try{detail=(await submit.json()).message||''}catch{}throw new Error(detail||'AI Horde не принял запрос ('+submit.status+').')}
 const job=await submit.json();if(!job.id)throw new Error('Сервис не выдал номер запроса.');
 for(let i=0;i<55;i++){
