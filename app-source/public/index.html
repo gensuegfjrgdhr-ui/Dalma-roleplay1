@@ -170,14 +170,7 @@ document.querySelectorAll('[data-page]').forEach(b=>b.onclick=()=>showPage(b.dat
 
 const avatarCache=new Map();
 const avatarPending=new Map();
-let avatarActiveRequests=0;
-const avatarRequestWaiters=[];
-async function avatarFetch(url){
- if(avatarActiveRequests>=4)await new Promise(resolve=>avatarRequestWaiters.push(resolve));
- avatarActiveRequests++;
- try{return await fetch(url)}
- finally{avatarActiveRequests--;const next=avatarRequestWaiters.shift();if(next)next()}
-}
+let avatarRequestQueue=Promise.resolve();
 const animeAvatarNames={
  'gojo':'Satoru Gojo','yuji':'Yuji Itadori','nezuko':'Nezuko Kamado','luffy':'Monkey D. Luffy','mikasa':'Mikasa Ackerman','sailor-moon':'Usagi Tsukino',
  'naruto':'Naruto Uzumaki','kakashi':'Kakashi Hatake','sakura':'Sakura Haruno','sasuke':'Sasuke Uchiha','itachi':'Itachi Uchiha','shikamaru':'Shikamaru Nara',
@@ -193,7 +186,7 @@ function setAvatarImage(node,url,name,cacheKey){
  if(!img){img=document.createElement('img');img.alt=name||'Аватар персонажа';img.loading='lazy';node.replaceChildren(img)}
  img.referrerPolicy='no-referrer';
  img.onload=()=>{node.classList.add('has-avatar')};
- img.onerror=()=>{img.remove();node.classList.remove('has-avatar');if(cacheKey){avatarCache.delete('rd_avatar_v5_'+cacheKey);try{localStorage.removeItem('rd_avatar_v5_'+cacheKey)}catch(e){}}node.textContent=(name||'✦').slice(0,1)};
+ img.onerror=()=>{img.remove();node.classList.remove('has-avatar');if(cacheKey){avatarCache.delete('rd_avatar_v6_'+cacheKey);try{localStorage.removeItem('rd_avatar_v6_'+cacheKey)}catch(e){}}node.textContent=(name||'✦').slice(0,1)};
  img.src=url;
 }
 const avatarPageTitles={
@@ -323,61 +316,66 @@ async function resolveCharacterAvatar(c){
  if(!c)return '';
  if(c.image||c.avatar)return c.image||c.avatar;
  const key=c.id||c.name;
- const cacheKey='rd_avatar_v5_'+key;
+ const cacheKey='rd_avatar_v6_'+key;
  if(avatarCache.has(cacheKey))return avatarCache.get(cacheKey);
  try{const saved=localStorage.getItem(cacheKey);if(saved){avatarCache.set(cacheKey,saved);return saved}}catch(e){}
  if(avatarPending.has(cacheKey))return avatarPending.get(cacheKey);
- const normalize=s=>String(s||'').toLocaleLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9а-яё]/g,'');
- const task=(async()=>{
-  let url='';
-  const expected=animeAvatarNames[c.id]||c.name;
-  const pageTitle=avatarPageTitles[c.id]||c.name;
-  // Anime portraits: use the character database first, matching the exact name
-  // when possible and otherwise its highest-ranked search result.
-  if(c.category==='Аниме'){
-   try{
-    const response=await avatarFetch('https://api.jikan.moe/v4/characters?q='+encodeURIComponent(expected)+'&limit=10');
-    if(response.ok){
-     const data=await response.json();
-     const list=data.data||[];
-     const exact=list.find(x=>normalize(x.name)===normalize(expected));
-     const likely=exact||list.find(x=>normalize(x.name).includes(normalize(expected))||normalize(expected).includes(normalize(x.name)));
-     const chosen=likely||list[0];
-     url=chosen?.images?.webp?.image_url||chosen?.images?.jpg?.image_url||'';
+ const task=avatarRequestQueue.then(async()=>{
+  try{
+   await new Promise(resolve=>setTimeout(resolve,350));
+   let url='';
+   const normalize=s=>String(s||'').toLocaleLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9а-яё]/g,'');
+   const isAnime=c.category==='Аниме';
+   if(isAnime){
+    const queries=[animeAvatarNames[c.id],c.name].filter(Boolean);
+    for(const q of queries){
+     try{
+      const r=await fetch('https://jikan.lucashdo.com/v1/characters?q='+encodeURIComponent(q));
+      if(r.ok){const j=await r.json();const list=j.data||[];const exact=list.find(x=>normalize(x.name)===normalize(q));const chosen=exact||list.find(x=>normalize(x.name).includes(normalize(q)))||list[0];url=chosen?.imageUrl||''}
+      if(!url){
+       const fallback=await fetch('https://api.jikan.moe/v4/characters?q='+encodeURIComponent(q)+'&limit=8');
+       if(fallback.ok){const j=await fallback.json();const list=j.data||[];const exact=list.find(x=>normalize(x.name)===normalize(q));const chosen=exact||list.find(x=>normalize(x.name).includes(normalize(q)))||list[0];url=chosen?.images?.webp?.image_url||chosen?.images?.jpg?.image_url||''}
+      }
+      if(url)break;
+     }catch(e){}
+     await new Promise(resolve=>setTimeout(resolve,300));
     }
-   }catch(e){}
-  }
-  // Other fandoms: use the exact encyclopedia page, then its ranked title search.
-  if(!url){
-   try{
-    const endpoint='https://en.wikipedia.org/w/api.php?action=query&titles='+encodeURIComponent(pageTitle)+'&redirects=1&prop=pageimages&piprop=thumbnail&pithumbsize=480&format=json&origin=*';
-    const response=await avatarFetch(endpoint);
-    if(response.ok){
-     const page=await response.json();
-     const pages=Object.values(page.query?.pages||{});
-     url=pages.find(x=>x.thumbnail?.source)?.thumbnail?.source||'';
+   }
+   // Точное название из подготовленного списка страниц, затем поиск по имени
+   // персонажа и его вселенной — как в прежней версии сайта.
+   if(!url){
+    const title=avatarPageTitles[c.id];
+    if(title){
+     try{
+      const api='https://en.wikipedia.org/w/api.php?action=query&titles='+encodeURIComponent(title)+'&redirects=1&prop=pageimages&piprop=thumbnail&pithumbsize=480&format=json&origin=*';
+      const r=await fetch(api);
+      if(r.ok){const j=await r.json();url=Object.values(j.query?.pages||{}).find(p=>p.thumbnail?.source)?.thumbnail?.source||''}
+     }catch(e){}
     }
-   }catch(e){}
-  }
-  if(!url){
-   try{
-    const endpoint='https://en.wikipedia.org/w/api.php?action=query&generator=search&gsrsearch='+encodeURIComponent('"'+pageTitle+'"')+'&gsrlimit=8&prop=pageimages&piprop=thumbnail&pithumbsize=480&format=json&origin=*';
-    const response=await avatarFetch(endpoint);
-    if(response.ok){
-     const data=await response.json();
-     const pages=Object.values(data.query?.pages||{});
-     const target=normalize(pageTitle);
-     const chosen=pages.find(x=>x.thumbnail?.source&&normalize(x.title).includes(target))||pages.find(x=>x.thumbnail?.source);
-     url=chosen?.thumbnail?.source||'';
+   }
+   if(!url){
+    const queries=[
+     'https://ru.wikipedia.org/w/api.php?action=query&generator=search&gsrsearch='+encodeURIComponent(c.name+' '+(c.project||''))+'&gsrnamespace=0&gsrlimit=8&prop=pageimages&piprop=thumbnail&pithumbsize=480&format=json&origin=*',
+     'https://en.wikipedia.org/w/api.php?action=query&generator=search&gsrsearch='+encodeURIComponent((animeAvatarNames[c.id]||c.name)+' '+(c.project||''))+'&gsrnamespace=0&gsrlimit=8&prop=pageimages&piprop=thumbnail&pithumbsize=480&format=json&origin=*'
+    ];
+    for(const api of queries){
+     try{
+      const r=await fetch(api);
+      if(r.ok){
+       const j=await r.json(),pages=Object.values(j.query?.pages||{});
+       const tokens=normalize(c.name).match(/[a-zа-яё]{3,}/g)||[];
+       const ranked=pages.filter(p=>p.thumbnail?.source).map(p=>({p,score:tokens.reduce((n,t)=>n+(normalize(p.title).includes(t)?1:0),0)})).sort((a,b)=>b.score-a.score);
+       url=ranked.find(x=>x.score>0)?.p.thumbnail?.source||'';
+      }
+     }catch(e){}
+     if(url)break;
     }
-   }catch(e){}
-  }
-  if(url){
-   avatarCache.set(cacheKey,url);
-   try{localStorage.setItem(cacheKey,url)}catch(e){}
-  }
-  return url;
- })();
+   }
+   if(url){avatarCache.set(cacheKey,url);try{localStorage.setItem(cacheKey,url)}catch(e){}}
+   return url;
+  }catch(e){return ''}
+ });
+ avatarRequestQueue=task.catch(()=>{});
  avatarPending.set(cacheKey,task);
  const result=await task;avatarPending.delete(cacheKey);return result;
 }
