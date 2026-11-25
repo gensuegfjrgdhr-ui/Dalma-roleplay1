@@ -69,7 +69,7 @@ jobs:
           from pathlib import Path
           page = Path("_site/index.html")
           html = page.read_text(encoding="utf-8")
-          script = '<script src="./access-gate.js"></script>'
+          script = '<script src="./access-gate.js?v=2"></script>'
           if script not in html:
               if "</body>" in html:
                   html = html.replace("</body>", script + "\n</body>", 1)
