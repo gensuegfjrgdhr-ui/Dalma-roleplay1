@@ -158,7 +158,7 @@ function createScenarioChat(c,sc){
 let found=chars.find(x=>x.catalogId===c.id);if(!found){found={id:crypto.randomUUID(),catalogId:c.id,name:c.name,age:c.age,personality:c.personality,appearance:'',bio:c.bio,project:c.project,category:c.category};chars.push(found);save()}
 let first=sc.first(c.name);
 if(c.id==='st-will'&&sc.title==='Друзья детства')first='*После уроков я стою у входа в школу, сжимая лямку рюкзака. Увидев тебя, заметно оживляюсь и быстро подхожу ближе.* — Ты всё-таки пришёл! Я хотел показать тебе кое-что… Только обещай, что не будешь смеяться. Это связано с тем, что я видел вчера вечером.';
-let ch={id:crypto.randomUUID(),title:c.name+' · '+sc.title,characterId:found.id,scenario:sc.title,scenarioSetup:sc.setup,messages:[{role:'assistant',content:first}]};chats.unshift(ch);save();activeChat=ch.id;showPage('chats');renderChats();renderChat()
+let ch={id:crypto.randomUUID(),title:c.name+' · '+sc.title,characterId:found.id,scenario:sc.title,scenarioSetup:sc.setup,messages:[{role:'assistant',content:first,scenario:sc.title,scenarioSetup:sc.setup}]};chats.unshift(ch);save();activeChat=ch.id;showPage('chats');renderChats();renderChat()
 }
 function startCatalogChat(c){openScenarioPicker(c)}
 
