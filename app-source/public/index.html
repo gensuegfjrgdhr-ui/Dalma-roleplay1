@@ -198,7 +198,7 @@ async function resolveCharacterAvatar(c){
  if(avatarPending.has(key))return avatarPending.get(key);
  const task=avatarRequestQueue.then(async()=>{
   try{
-   await new Promise(resolve=>setTimeout(resolve,450));
+   await new Promise(resolve=>setTimeout(resolve,250));
    let url='';
    const isAnime=c.category==='Аниме';
    if(isAnime){
@@ -217,9 +217,26 @@ async function resolveCharacterAvatar(c){
     }
    }
    if(!url){
+    const searchTerms=[c.name+' '+(c.project||''),c.project+' '+c.name,c.name].filter(Boolean);
+    for(const term of searchTerms){
+     try{
+      const api='https://commons.wikimedia.org/w/api.php?action=query&generator=search&gsrsearch='+encodeURIComponent(term+' filetype:bitmap')+'&gsrnamespace=6&gsrlimit=8&prop=imageinfo&iiprop=url&iiurlwidth=480&format=json&origin=*';
+      const r=await fetch(api);
+      if(r.ok){
+       const j=await r.json();
+       const pages=Object.values(j.query?.pages||{});
+       const usable=pages.filter(p=>p.imageinfo?.[0]?.thumburl||p.imageinfo?.[0]?.url);
+       const preferred=usable.find(p=>{const title=(p.title||'').toLowerCase();return title.includes((c.name||'').split(' ')[0].toLowerCase())})||usable[0];
+       url=preferred?.imageinfo?.[0]?.thumburl||preferred?.imageinfo?.[0]?.url||'';
+      }
+     }catch(e){}
+     if(url)break;
+    }
+   }
+   if(!url){
     const queries=[
-     'https://ru.wikipedia.org/w/api.php?action=query&generator=search&gsrsearch='+encodeURIComponent(c.name+' '+(c.project||''))+'&gsrnamespace=0&gsrlimit=5&prop=pageimages&piprop=thumbnail&pithumbsize=320&format=json&origin=*',
-     'https://en.wikipedia.org/w/api.php?action=query&generator=search&gsrsearch='+encodeURIComponent(c.name+' '+(c.project||''))+'&gsrnamespace=0&gsrlimit=5&prop=pageimages&piprop=thumbnail&pithumbsize=320&format=json&origin=*'
+     'https://ru.wikipedia.org/w/api.php?action=query&generator=search&gsrsearch='+encodeURIComponent('"'+c.name+'" '+(c.project||''))+'&gsrnamespace=0&gsrlimit=8&prop=pageimages&piprop=thumbnail&pithumbsize=480&format=json&origin=*',
+     'https://en.wikipedia.org/w/api.php?action=query&generator=search&gsrsearch='+encodeURIComponent(c.name+' '+(c.project||''))+'&gsrnamespace=0&gsrlimit=8&prop=pageimages&piprop=thumbnail&pithumbsize=480&format=json&origin=*'
     ];
     for(const api of queries){
      try{const r=await fetch(api);if(r.ok){const j=await r.json();const pages=Object.values(j.query?.pages||{});url=pages.find(p=>p.thumbnail?.source)?.thumbnail?.source||''}}
