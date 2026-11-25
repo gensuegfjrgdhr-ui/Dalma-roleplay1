@@ -22,7 +22,7 @@
   input.focus();
   document.getElementById("dalma-access-form").addEventListener("submit", (event) => {
     event.preventDefault();
-    if (input.value.trim() === ACCESS_CODE) {
+    if (input.value.trim().toUpperCase() === ACCESS_CODE) {
       try { sessionStorage.setItem("dalma_access_granted", "yes"); } catch (_) {}
       screen.remove();
     } else {
