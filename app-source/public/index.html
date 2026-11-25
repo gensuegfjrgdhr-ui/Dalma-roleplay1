@@ -193,7 +193,7 @@ function setAvatarImage(node,url,name,cacheKey){
  if(!img){img=document.createElement('img');img.alt=name||'Аватар персонажа';img.loading='lazy';node.replaceChildren(img)}
  img.referrerPolicy='no-referrer';
  img.onload=()=>{node.classList.add('has-avatar')};
- img.onerror=()=>{img.remove();node.classList.remove('has-avatar');if(cacheKey){avatarCache.delete('rd_avatar_v4_'+cacheKey);try{localStorage.removeItem('rd_avatar_v4_'+cacheKey)}catch(e){}}node.textContent=(name||'✦').slice(0,1)};
+ img.onerror=()=>{img.remove();node.classList.remove('has-avatar');if(cacheKey){avatarCache.delete('rd_avatar_v5_'+cacheKey);try{localStorage.removeItem('rd_avatar_v5_'+cacheKey)}catch(e){}}node.textContent=(name||'✦').slice(0,1)};
  img.src=url;
 }
 const avatarPageTitles={
@@ -323,18 +323,32 @@ async function resolveCharacterAvatar(c){
  if(!c)return '';
  if(c.image||c.avatar)return c.image||c.avatar;
  const key=c.id||c.name;
- const cacheKey='rd_avatar_v4_'+key;
+ const cacheKey='rd_avatar_v5_'+key;
  if(avatarCache.has(cacheKey))return avatarCache.get(cacheKey);
  try{const saved=localStorage.getItem(cacheKey);if(saved){avatarCache.set(cacheKey,saved);return saved}}catch(e){}
  if(avatarPending.has(cacheKey))return avatarPending.get(cacheKey);
- const normalize=s=>String(s||'').toLocaleLowerCase().normalize('NFD').replace(/[\\u0300-\\u036f]/g,'').replace(/[^a-z0-9а-яё]/g,'');
+ const normalize=s=>String(s||'').toLocaleLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9а-яё]/g,'');
  const task=(async()=>{
-  try{
-   let url='';
-   const expected=animeAvatarNames[c.id]||c.name;
-   const pageTitle=avatarPageTitles[c.id]||c.name;
-   // Сначала ищем точную страницу персонажа в Википедии; это работает и для
-   // героев сериалов, фильмов и игр, даже если ID ещё не был прописан вручную.
+  let url='';
+  const expected=animeAvatarNames[c.id]||c.name;
+  const pageTitle=avatarPageTitles[c.id]||c.name;
+  // Anime portraits: use the character database first, matching the exact name
+  // when possible and otherwise its highest-ranked search result.
+  if(c.category==='Аниме'){
+   try{
+    const response=await avatarFetch('https://api.jikan.moe/v4/characters?q='+encodeURIComponent(expected)+'&limit=10');
+    if(response.ok){
+     const data=await response.json();
+     const list=data.data||[];
+     const exact=list.find(x=>normalize(x.name)===normalize(expected));
+     const likely=exact||list.find(x=>normalize(x.name).includes(normalize(expected))||normalize(expected).includes(normalize(x.name)));
+     const chosen=likely||list[0];
+     url=chosen?.images?.webp?.image_url||chosen?.images?.jpg?.image_url||'';
+    }
+   }catch(e){}
+  }
+  // Other fandoms: use the exact encyclopedia page, then its ranked title search.
+  if(!url){
    try{
     const endpoint='https://en.wikipedia.org/w/api.php?action=query&titles='+encodeURIComponent(pageTitle)+'&redirects=1&prop=pageimages&piprop=thumbnail&pithumbsize=480&format=json&origin=*';
     const response=await avatarFetch(endpoint);
@@ -344,38 +358,25 @@ async function resolveCharacterAvatar(c){
      url=pages.find(x=>x.thumbnail?.source)?.thumbnail?.source||'';
     }
    }catch(e){}
-   // Для аниме берём именно портрет персонажа из базы MyAnimeList.
-   if(!url&&c.category==='Аниме'){
-    try{
-     const response=await avatarFetch('https://api.jikan.moe/v4/characters?q='+encodeURIComponent(expected)+'&limit=10');
-     if(response.ok){
-      const data=await response.json();
-      const exact=(data.data||[]).find(x=>normalize(x.name)===normalize(expected));
-      url=exact?.images?.webp?.image_url||exact?.images?.jpg?.image_url||'';
-     }
-    }catch(e){}
-   }
-   // Если точная страница не существует, пробуем поиск по имени персонажа,
-   // но не подставляем случайное изображение из общего поиска.
-   if(!url){
-    try{
-     const endpoint='https://en.wikipedia.org/w/api.php?action=query&generator=search&gsrsearch='+encodeURIComponent('"'+pageTitle+'" character')+'&gsrlimit=6&prop=pageimages&piprop=thumbnail&pithumbsize=480&format=json&origin=*';
-     const response=await avatarFetch(endpoint);
-     if(response.ok){
-      const data=await response.json();
-      const pages=Object.values(data.query?.pages||{});
-      const target=normalize(pageTitle);
-      const match=pages.find(x=>normalize(x.title).includes(target)&&x.thumbnail?.source);
-      url=match?.thumbnail?.source||'';
-     }
-    }catch(e){}
-   }
-   if(url){
-    avatarCache.set(cacheKey,url);
-    try{localStorage.setItem(cacheKey,url)}catch(e){}
-   }
-   return url;
-  }catch(e){return ''}
+  }
+  if(!url){
+   try{
+    const endpoint='https://en.wikipedia.org/w/api.php?action=query&generator=search&gsrsearch='+encodeURIComponent('"'+pageTitle+'"')+'&gsrlimit=8&prop=pageimages&piprop=thumbnail&pithumbsize=480&format=json&origin=*';
+    const response=await avatarFetch(endpoint);
+    if(response.ok){
+     const data=await response.json();
+     const pages=Object.values(data.query?.pages||{});
+     const target=normalize(pageTitle);
+     const chosen=pages.find(x=>x.thumbnail?.source&&normalize(x.title).includes(target))||pages.find(x=>x.thumbnail?.source);
+     url=chosen?.thumbnail?.source||'';
+    }
+   }catch(e){}
+  }
+  if(url){
+   avatarCache.set(cacheKey,url);
+   try{localStorage.setItem(cacheKey,url)}catch(e){}
+  }
+  return url;
  })();
  avatarPending.set(cacheKey,task);
  const result=await task;avatarPending.delete(cacheKey);return result;
