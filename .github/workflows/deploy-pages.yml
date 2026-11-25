@@ -3,8 +3,6 @@ name: Deploy Dalma Roleplay to GitHub Pages
 on:
   push:
     branches: [main]
-    paths-ignore:
-      - 'app-source/**'
   workflow_dispatch:
 
 permissions:
