@@ -273,7 +273,7 @@ const submit=await fetch('https://aihorde.net/api/v2/generate/text/async',{metho
 prompt,
 params:{max_length:220,max_context_length:3072,temperature:0.78,top_p:0.9,top_k:40,rep_pen:1.12,rep_pen_range:512},
 models:[],
-slow_workers:false
+slow_workers:true
 })});
 if(!submit.ok){let detail='';try{detail=(await submit.json()).message||''}catch{}throw new Error(detail||'Сервис ИИ не принял запрос ('+submit.status+').');}
 const job=await submit.json();if(!job.id)throw new Error('Сервис ИИ не выдал номер запроса.');
