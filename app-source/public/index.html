@@ -370,18 +370,29 @@ async function hordeFallback(prompt,onProgress){
 }
 async function hordeReply(character,messages,onProgress){
   const prompt=buildRoleplayPrompt(character,messages);
-  onProgress?.('Подключаю основной ИИ…');
+  // GitHub Pages is a static host: /api/chat may not exist there.
+  // Treat unavailable or malformed primary responses as a reason to use the public fallback.
   try{
-    const response=await fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({character,messages,prompt})});
-    let data={};try{data=await response.json()}catch{}
+    onProgress?.('Проверяю основной ИИ…');
+    const controller=new AbortController();
+    const timeout=setTimeout(()=>controller.abort(),12000);
+    let response;
+    try{
+      response=await fetch('/api/chat',{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({character,messages,prompt}),
+        signal:controller.signal
+      });
+    }finally{clearTimeout(timeout)}
     if(response.ok){
+      const data=await response.json().catch(()=>({}));
       const answer=cleanRoleplayAnswer(data.text||'');
       if(answer.length>1)return answer;
-      throw new Error('Модель не прислала текст. Попробуй повторить.');
     }
-    if(response.status!==404&&response.status!==503)throw new Error(data.error||'ИИ временно недоступен ('+response.status+').');
+    onProgress?.('Основной ИИ не ответил. Переключаюсь на резервный…');
   }catch(error){
-    if(error?.name!=='TypeError')throw error;
+    onProgress?.('Переключаюсь на резервный ИИ…');
   }
   return await hordeFallback(prompt,onProgress);
 }
