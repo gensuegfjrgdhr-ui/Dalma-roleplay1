@@ -1,0 +1,8 @@
+{
+  "appId": "com.dalma.roleplay",
+  "appName": "Dalma Roleplay",
+  "webDir": "app-source/public",
+  "server": {
+    "androidScheme": "https"
+  }
+}
