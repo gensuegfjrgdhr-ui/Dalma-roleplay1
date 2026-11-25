@@ -186,7 +186,7 @@ function setAvatarImage(node,url,name,cacheKey){
  if(!img){img=document.createElement('img');img.alt=name||'Аватар персонажа';img.loading='lazy';node.replaceChildren(img)}
  img.referrerPolicy='no-referrer';
  img.onload=()=>{node.classList.add('has-avatar')};
- img.onerror=()=>{img.remove();node.classList.remove('has-avatar');if(cacheKey){avatarCache.delete(cacheKey);try{localStorage.removeItem('rd_avatar_v2_'+cacheKey)}catch(e){}}node.textContent=(name||'✦').slice(0,1)};
+ img.onerror=()=>{img.remove();node.classList.remove('has-avatar');if(cacheKey){avatarCache.delete('rd_avatar_v2_'+cacheKey);try{localStorage.removeItem('rd_avatar_v2_'+cacheKey)}catch(e){}}node.textContent=(name||'✦').slice(0,1)};
  img.src=url;
 }
 const avatarPageTitles={
