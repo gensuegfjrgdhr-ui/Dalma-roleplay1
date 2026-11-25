@@ -28,10 +28,6 @@ jobs:
           mkdir -p extracted
           unzip -q dalma_render_deploy.zip -d extracted
 
-          echo '--- ACCESS-GATE DIAGNOSTICS ---'
-          grep -RInE 'код доступа|пароль|access.?code|access.?gate|password|localStorage' extracted --exclude='*.map' || true
-          echo '--- EXTRACTED FILES ---'
-          find extracted -maxdepth 4 -type f -print | head -200
 
           PACKAGE_JSON="$(find extracted -name package.json -not -path '*/node_modules/*' -print -quit || true)"
           if [ -n "$PACKAGE_JSON" ]; then
@@ -69,6 +65,7 @@ jobs:
           test -f "$OUTPUT_DIR/index.html"
           mkdir -p "$GITHUB_WORKSPACE/_site"
           cp -a "$OUTPUT_DIR"/. "$GITHUB_WORKSPACE/_site"/
+          printf '\n<style>#accessModal{display:none!important}</style>\n' >> "$GITHUB_WORKSPACE/_site/index.html"
           touch "$GITHUB_WORKSPACE/_site/.nojekyll"
           echo "Publishing files from: $OUTPUT_DIR"
           find "$GITHUB_WORKSPACE/_site" -maxdepth 2 -type f -print
