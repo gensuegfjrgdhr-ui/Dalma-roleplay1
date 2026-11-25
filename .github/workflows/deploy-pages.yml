@@ -28,6 +28,11 @@ jobs:
           mkdir -p extracted
           unzip -q dalma_render_deploy.zip -d extracted
 
+          echo '--- ACCESS-GATE DIAGNOSTICS ---'
+          grep -RInE 'код доступа|пароль|access.?code|access.?gate|password|localStorage' extracted --exclude='*.map' || true
+          echo '--- EXTRACTED FILES ---'
+          find extracted -maxdepth 4 -type f -print | head -200
+
           PACKAGE_JSON="$(find extracted -name package.json -not -path '*/node_modules/*' -print -quit || true)"
           if [ -n "$PACKAGE_JSON" ]; then
             APP_DIR="$(dirname "$PACKAGE_JSON")"
