@@ -226,31 +226,111 @@ $('#charForm').onsubmit=async e=>{e.preventDefault();let f=e.target.image.files[
 function renderChars(){let el=$('#characterGrid');el.innerHTML='';if(!chars.length){el.innerHTML='<div class="empty">Пока нет персонажей. Создай первого героя ✦</div>';return}chars.forEach(c=>{let d=document.createElement('div');d.className='card';d.innerHTML=`<div class="char"><div class="avatar">${c.image?`<img src="${c.image}">`:'♙'}</div><div><b></b><p></p><span class="tag">Персонаж</span></div></div><p class="muted"></p><button class="secondary">Начать ролку</button> <button class="ghost">Удалить</button>`;d.querySelector('b').textContent=c.name;d.querySelector('.char p').textContent=c.age?c.age+' лет':'Возраст не указан';d.querySelector('.muted').textContent=(c.personality||'Характер пока не описан').slice(0,130);d.querySelector('.secondary').onclick=()=>newChat(c.id);d.querySelector('.ghost').onclick=()=>{if(confirm('Удалить персонажа?')){chars=chars.filter(x=>x.id!==c.id);save();renderChars()}};el.append(d)})}
 function newChat(charId){if(!chars.length){alert('Сначала создай хотя бы одного персонажа.');openCharacter();return}let c=chars.find(x=>x.id===charId)||chars[0];let ch={id:crypto.randomUUID(),title:'Ролка с '+c.name,characterId:c.id,messages:[{role:'assistant',content:'*Вокруг постепенно складывается новая сцена. '+c.name+' замечает тебя и на мгновение задерживает взгляд.*\\n\\n— Привет. Кажется, нам есть о чём поговорить…'}]};chats.unshift(ch);save();activeChat=ch.id;showPage('chats');renderChats();renderChat()}
 function renderChats(){let el=$('#chatList');el.innerHTML='';if(!chats.length){el.innerHTML='<div class="empty">Историй пока нет.</div>';$('#chatArea').innerHTML='<div class="empty">Создай персонажа, а затем начни ролку.</div>';return}chats.forEach(ch=>{let b=document.createElement('button');b.className='chatitem '+(ch.id===activeChat?'selected':'');b.textContent=ch.title;b.onclick=()=>{activeChat=ch.id;renderChats();renderChat()};el.append(b)})}
-function renderChat(){let ch=chats.find(x=>x.id===activeChat);if(!ch)return;let c=chars.find(x=>x.id===ch.characterId);let area=$('#chatArea');area.innerHTML=`<div class="chathead"><div style="display:flex;align-items:center;gap:11px"><div class="avatar" style="width:42px;height:42px;border-radius:50%">${c?.image?'<img src="'+c.image+'">':(c?.name||'✦').slice(0,1)}</div><div><b></b><div class="muted" style="font-size:12px">Ролевая переписка · история сохраняется здесь</div></div></div><button class="secondary" id="deleteChat" title="Удалить историю">⋯</button></div><div class="messages" id="messages" aria-live="polite"></div><div class="composer"><textarea id="messageInput" rows="1" placeholder="Напиши сообщение или действие…"></textarea><button class="primary" id="sendMessage" aria-label="Отправить">Отправить</button></div><div class="muted" style="font-size:11px;padding:0 14px 12px">Enter — отправить · Shift + Enter — новая строка</div>`;area.querySelector('.chathead b').textContent=c?.name||ch.title;$('#deleteChat').onclick=()=>{if(confirm('Удалить эту ролку?')){chats=chats.filter(x=>x.id!==activeChat);activeChat=chats[0]?.id||null;save();renderChats();renderChat()}};let m=$('#messages');ch.messages.forEach(x=>{let d=document.createElement('div');d.className='msg '+(x.role==='user'?'me':'');let who=document.createElement('div');who.className='who';who.textContent=x.role==='user'?'Ты':(c?.name||'Персонаж');let body=document.createElement('div');body.textContent=x.content;d.append(who,body);m.append(d)});m.scrollTop=m.scrollHeight;$('#sendMessage').onclick=sendMessage;let input=$('#messageInput');input.oninput=()=>{input.style.height='auto';input.style.height=Math.min(input.scrollHeight,180)+'px'};input.onkeydown=e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendMessage()}};}
+function renderChat(){let ch=chats.find(x=>x.id===activeChat);if(!ch)return;let c=chars.find(x=>x.id===ch.characterId);let area=$('#chatArea');area.innerHTML=`<div class="chathead"><div style="display:flex;align-items:center;gap:11px"><div class="avatar" style="width:42px;height:42px;border-radius:50%">${c?.image?'<img src="'+c.image+'">':(c?.name||'✦').slice(0,1)}</div><div><b></b><div class="muted" style="font-size:12px">Ролевая переписка · история сохраняется здесь</div></div></div><button class="secondary" id="deleteChat" title="Удалить историю">⋯</button></div><div class="messages" id="messages" aria-live="polite"></div><div class="composer"><textarea id="messageInput" rows="1" placeholder="Напиши сообщение или действие…"></textarea><button class="primary" id="sendMessage" aria-label="Отправить">Отправить</button></div><div class="muted" style="font-size:11px;padding:0 14px 12px">Enter — отправить · Shift + Enter — новая строка</div>`;area.querySelector('.chathead b').textContent=c?.name||ch.title;$('#deleteChat').onclick=()=>{if(confirm('Удалить эту ролку?')){chats=chats.filter(x=>x.id!==activeChat);activeChat=chats[0]?.id||null;save();renderChats();renderChat()}};let m=$('#messages');ch.messages.forEach(x=>{let d=document.createElement('div');d.className='msg '+(x.role==='user'?'me':'');let who=document.createElement('div');who.className='who';who.textContent=x.role==='user'?'Ты':(c?.name||ch.universe||'Персонаж');let body=document.createElement('div');body.textContent=x.content;d.append(who,body);if(x.retry){let retry=document.createElement('button');retry.className='secondary';retry.textContent='↻ Повторить ответ';retry.style.marginTop='10px';retry.onclick=retryLastReply;d.append(retry)}m.append(d)});m.scrollTop=m.scrollHeight;$('#sendMessage').onclick=sendMessage;$('#sendMessage').disabled=busyChats.has(ch.id);let input=$('#messageInput');input.oninput=()=>{input.style.height='auto';input.style.height=Math.min(input.scrollHeight,180)+'px'};input.onkeydown=e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendMessage()}};}
+function buildRoleplayPrompt(character,messages){
+const first=messages?.[0]||{};
+const isUniverse=!!first.universe;
+const name=character?.name||(isUniverse?'Ведущий истории':'Персонаж');
+const system=isUniverse
+? 'Ты — ведущий интерактивной ролевой истории во вселенной «'+first.universe+'». Веди окружающий мир и всех неигровых персонажей, но никогда не управляй героем пользователя. Соблюдай атмосферу, логику мира, выбранный сезон/период и характеры каноничных героев. Не пересказывай канон и не перескакивай через важные события без причины. Создавай сцены, реакции NPC и естественные диалоги. Оставляй пользователю возможность самому решать, что делать.'
+: 'Ты отыгрываешь только персонажа «'+name+'». Пиши от его лица: действия, реплики и уместные эмоции. Строго соблюдай его характер, биографию, привычки и манеру речи. Не превращайся в рассказчика от третьего лица и не говори как ИИ.';
+const rules=[
+'ЯЗЫК: отвечай исключительно на русском языке. Не вставляй английские предложения; названия и имена можно оставлять в оригинале.',
+'НЕ УПРАВЛЯЙ ПЕРСОНАЖЕМ ПОЛЬЗОВАТЕЛЯ: не придумывай его слова, мысли, чувства, решения, реакции или действия. Не повторяй его реплику от его имени.',
+'НЕ ЛОМАЙ РОЛЬ: не упоминай промпты, модели, генерацию, правила или то, что ты искусственный интеллект.',
+'ПАМЯТЬ: учитывай предыдущие события, отношения, обещания, имена, детали и уже полученные знания. Не начинай сцену заново и не противоречь установленным фактам.',
+'СТИЛЬ: живой темп переписки. Обычно 1–3 коротких абзаца, примерно 30–90 слов. Чередуй действия, реплики и небольшие детали окружения. Не пиши длинные монологи и не повторяй одни и те же жесты.',
+'ДИАЛОГ: персонаж должен реагировать именно на последнюю реплику пользователя, а не отвечать общими фразами. Пусть у него будут собственные инициативы, вопросы и естественные реакции.',
+'СЦЕНА: добавляй атмосферу через конкретные детали, но не перегружай каждое сообщение описаниями. Сохраняй непрерывность места, времени и происходящего.',
+'ФОРМАТ: действия можно выделять *звёздочками*, реплики оформляй естественно. Не добавляй заголовки вроде «Ответ персонажа».',
+'Если информации не хватает, не выдумывай важные факты о герое пользователя — лучше задай короткий вопрос внутри сцены.',
+'Сохраняй безопасный, неэксплицитный формат общения.'
+].join('\n');
+const profile='Имя: '+name+'\nВселенная/проект: '+(character?.project||character?.category||first.universe||'не указана')+'\nВозраст: '+(character?.age||'не указан')+'\nХарактер и манера речи: '+(character?.personality||'определи по уже заданному контексту')+'\nВнешность: '+(character?.appearance||'не указана')+'\nПредыстория: '+(character?.bio||'не указана');
+const userProfile=first.userCharacterName
+? '\nИмя героя пользователя: '+first.userCharacterName+'\nЕго внешность: '+(first.userCharacterAppearance||'не указана')+'\nЕго характер: '+(first.userCharacterPersonality||'не указан')
+: '';
+const scenario='Сюжет: '+(first.scenario||'свободная ролевая история')+'\nУсловия сюжета: '+(first.scenarioSetup||'развивай сцену естественно')+'\nПериод/глава: '+(first.chapter||'не задан')+userProfile;
+let selected=(messages||[]).slice(-16);
+let transcriptParts=[],total=0;
+for(let i=selected.length-1;i>=0;i--){
+const m=selected[i],line=(m.role==='user'?'Пользователь':'Персонаж/мир')+': '+String(m.content||'').slice(-900);
+if(total+line.length>8200&&transcriptParts.length>=2)break;
+transcriptParts.unshift(line);total+=line.length;
+}
+return '### Твоя роль\n'+system+'\n\n### Обязательные правила\n'+rules+'\n\n### Карточка персонажа\n'+profile+'\n\n### Сюжет и контекст\n'+scenario+'\n\n### Последние сообщения переписки\n'+transcriptParts.join('\n\n')+'\n\n### Продолжи историю сейчас\n';
+}
+function cleanRoleplayAnswer(raw){
+let answer=String(raw||'').replace(/\r/g,'').trim();
+answer=answer.replace(/^(?:###\s*(?:ответ|продолжи историю)[^\n]*\n|(?:ответ|персонаж)\s*:\s*)+/i,'').trim();
+answer=answer.replace(/^(?:assistant|персонаж)\s*:\s*/i,'').trim();
+return answer;
+}
 async function hordeReply(character,messages,onProgress){
-const name=character?.name||(messages?.[0]?.universe?'Мир '+messages[0].universe:'Персонаж');
-const system=messages?.[0]?.universe?'СТРОГОЕ ПРАВИЛО ЯЗЫКА: весь ответ только на русском языке. Не переключайся на английский, даже если название произведения, персонажа или часть предыдущего контекста написаны по-английски. Английские реплики всегда передавай по-русски. Ты — ведущий интерактивной ролевой истории во вселенной «'+messages[0].universe+'». Ты управляешь окружающим миром, атмосферой и всеми каноничными персонажами, которые появляются в сцене. Соблюдай канон выбранного периода и характеры героев. Пользователь — самостоятельный персонаж, который уже живёт в этой вселенной; не описывай его мысли, чувства, слова или действия. Пиши коротко, живо и кинематографично, обычно 1–3 небольших абзаца. Создавай сцены и диалоги с NPC, но оставляй пользователю пространство для решений. Не говори от лица ИИ. Отвечай ИСКЛЮЧИТЕЛЬНО по-русски. Перед отправкой проверь, что весь текст написан кириллицей, кроме имён собственных и общепринятых названий. Сохраняй безопасный неэксплицитный формат.':'СТРОГОЕ ПРАВИЛО ЯЗЫКА: весь ответ только на русском языке. Не переключайся на английский ни при каких обстоятельствах. Даже если предыдущая реплика или исходный канон на английском — отвечай естественным русским переводом. Не вставляй английские предложения. Ты — '+name+', полноценный персонаж ролевой истории. Пиши строго от первого лица персонажа, не как ИИ и не как сторонний рассказчик. Создавай атмосферу сцены: описывай место, погоду, свет, звуки, детали окружения, мимику, жесты, движения и эмоции своего персонажа. Сочетай действия и внутренние реакции с естественной живой речью. Действия можно выделять звёздочками, например: *я отвожу взгляд и прислушиваюсь к шуму дождя*. Соблюдай характер, привычки, биографию и манеру речи. Пиши как живой собеседник в мессенджере: обычно 1–3 коротких абзаца, примерно 25–65 слов. Не делай каждую реплику литературным монологом; чередуй короткие действия, естественные диалоги, вопросы и реакции. Не превращай каждый ответ в длинный рассказ. Действия и атмосферу добавляй дозированно, только важные детали. Реплики персонажа должны звучать живо и соответствовать его характеру. Помни предыдущие события. Никогда не описывай мысли, чувства, слова или действия персонажа пользователя и не решай за него, что он делает. Не пересказывай его сообщение и не используй служебные фразы. Если сцена не задана, начни выразительную подходящую сцену и оставь пользователю пространство для ответа. Отвечай по-русски. Сохраняй безопасный неэксплицитный формат.';
-const profile='Имя: '+name+'\nВселенная: '+(character?.project||character?.category||'не указана')+'\nВозраст: '+(character?.age||'не указан')+'\nХарактер и манера речи: '+(character?.personality||'определи по контексту')+'\nВнешность: '+(character?.appearance||'не указана')+'\nПредыстория: '+(character?.bio||'не указана');
-const transcript=(messages||[]).slice(-18).map(m=>(m.role==='user'?'Пользователь':'Персонаж')+': '+String(m.content||'').slice(0,1800)).join('\n\n');
-const scenario=messages?.[0]?.scenario||'';
-const userProfile=messages?.[0]?.userCharacterName?('\\n\\n### Персонаж пользователя\\nИмя: '+messages[0].userCharacterName+'\\nВнешность: '+messages[0].userCharacterAppearance+'\\nХарактер: '+messages[0].userCharacterPersonality):'';
-const prompt='### Инструкция\\n'+system+'\\n\\n### Карточка персонажа\\n'+profile+'\\n\\n### Сюжет этой ролки\\n'+(messages?.[0]?.scenarioSetup||'Развивай сцену естественно.')+userProfile+'\\nНазвание роли: '+scenario+'\\n\\n### История диалога\\n'+transcript+'\\n\\n### Ответ '+name+'\\n';
-const headers={'Content-Type':'application/json','apikey':'0000000000','Client-Agent':'DalmaRoleplay:1.0:github.com/gensuegfjrgdhr-ui/Dalma-roleplay1'};
-const submit=await fetch('https://aihorde.net/api/v2/generate/text/async',{method:'POST',headers,body:JSON.stringify({prompt,params:{max_length:190,max_context_length:3072,temperature:0.78,top_p:0.9,rep_pen:1.12},models:[],workers:3,slow_workers:false})});
-if(!submit.ok){let detail='';try{detail=(await submit.json()).message||''}catch{}throw new Error(detail||'AI Horde не принял запрос ('+submit.status+').')}
-const job=await submit.json();if(!job.id)throw new Error('Сервис не выдал номер запроса.');
-for(let i=0;i<45;i++){
-await new Promise(resolve=>setTimeout(resolve,1100));
-const statusRes=await fetch('https://aihorde.net/api/v2/generate/text/status/'+encodeURIComponent(job.id),{headers:{'apikey':'0000000000','Client-Agent':'DalmaRoleplay:1.0:github.com/gensuegfjrgdhr-ui/Dalma-roleplay1'}});
-if(!statusRes.ok)throw new Error('Не удалось проверить очередь ИИ ('+statusRes.status+').');
+const prompt=buildRoleplayPrompt(character,messages);
+const headers={'Content-Type':'application/json','apikey':'0000000000','Client-Agent':'DalmaRoleplay:1.1:github.com/gensuegfjrgdhr-ui/Dalma-roleplay1'};
+const submit=await fetch('https://aihorde.net/api/v2/generate/text/async',{method:'POST',headers,body:JSON.stringify({
+prompt,
+params:{max_length:220,max_context_length:3072,temperature:0.78,top_p:0.9,top_k:40,rep_pen:1.12,rep_pen_range:512},
+models:[],
+slow_workers:false
+})});
+if(!submit.ok){let detail='';try{detail=(await submit.json()).message||''}catch{}throw new Error(detail||'Сервис ИИ не принял запрос ('+submit.status+').');}
+const job=await submit.json();if(!job.id)throw new Error('Сервис ИИ не выдал номер запроса.');
+const statusHeaders={'apikey':'0000000000','Client-Agent':headers['Client-Agent']};
+for(let i=0;i<85;i++){
+await new Promise(resolve=>setTimeout(resolve,1400));
+let statusRes;
+try{statusRes=await fetch('https://aihorde.net/api/v2/generate/text/status/'+encodeURIComponent(job.id),{headers:statusHeaders});}
+catch(err){if(i%5===0)onProgress?.('Связь с ИИ прервалась, повторяю проверку…');continue;}
+if(!statusRes.ok){if(statusRes.status>=500||statusRes.status===429){if(i%5===0)onProgress?.('Сервис временно занят, жду ответ…');continue;}throw new Error('Не удалось проверить очередь ИИ ('+statusRes.status+').');}
 const status=await statusRes.json();
-if(status.done){const answer=status.generations?.map(x=>x.text||'').join('\n').trim();if(answer)return answer;throw new Error('Модель завершила запрос без текста.');}
-if(status.faulted)throw new Error('Задание ИИ завершилось с ошибкой.');
-if(i%3===0)onProgress?.(status.waiting?('Ожидание свободной модели: '+status.waiting):'Персонаж печатает…');
+if(status.done){
+const answer=cleanRoleplayAnswer(status.generations?.map(x=>x.text||'').join('\n'));
+if(answer.length>1)return answer;
+throw new Error('Модель завершила запрос, но не прислала текст. Попробуй повторить.');
 }
-throw new Error('Очередь ИИ отвечает слишком долго. Попробуй отправить сообщение ещё раз.');
+if(status.faulted)throw new Error('Задание ИИ завершилось с ошибкой. Попробуй ещё раз.');
+if(i%4===0){
+if(Number.isFinite(status.wait_time)&&status.wait_time>0)onProgress?.('Персонаж готовит ответ · примерно '+Math.ceil(status.wait_time)+' сек.');
+else if(status.queue_position>0)onProgress?.('В очереди ИИ · позиция '+status.queue_position);
+else onProgress?.('Персонаж печатает…');
 }
-async function sendMessage(){let input=$('#messageInput'),content=input.value.trim();if(!content)return;let ch=chats.find(x=>x.id===activeChat),c=chars.find(x=>x.id===ch?.characterId);if(!ch||!c)return;let send=$('#sendMessage');if(send?.disabled)return;ch.messages.push({role:'user',content});input.value='';input.style.height='auto';save();renderChat();let box=$('#messages'),loading=document.createElement('div');loading.className='msg';let who=document.createElement('div');who.className='who';who.textContent=c.name||'Персонаж';let status=document.createElement('div');status.textContent='Подбирает слова…';loading.append(who,status);box.append(loading);box.scrollTop=box.scrollHeight;send=$('#sendMessage');if(send)send.disabled=true;try{const aiMessages=ch.messages.slice(-24);if(aiMessages.length){aiMessages[0]={...aiMessages[0],scenario:ch.scenario||aiMessages[0].scenario,scenarioSetup:ch.scenarioSetup||aiMessages[0].scenarioSetup,universe:ch.universe||aiMessages[0].universe,chapter:ch.chapter||aiMessages[0].chapter,userCharacterName:ch.userCharacterName||aiMessages[0].userCharacterName,userCharacterAppearance:ch.userCharacterAppearance||aiMessages[0].userCharacterAppearance,userCharacterPersonality:ch.userCharacterPersonality||aiMessages[0].userCharacterPersonality}}const answer=await hordeReply(c,aiMessages,s=>{status.textContent=s});ch.messages.push({role:'assistant',content:answer});}catch(err){ch.messages.push({role:'assistant',content:'Не получилось получить ответ от ИИ: '+(err?.message||'сервис временно недоступен')+'\\n\\nТвоя реплика сохранена — попробуй отправить её ещё раз.'});}save();renderChat()}
+}
+throw new Error('Ответ задерживается дольше обычного. Можно нажать «Повторить» — твоя реплика сохранена.');
+}
+let busyChats=new Set();
+async function runAIResponse(ch){
+if(!ch||busyChats.has(ch.id))return;
+busyChats.add(ch.id);
+const character=chars.find(x=>x.id===ch.characterId)||(ch.universe?{name:'Ведущий истории',project:ch.universe,personality:'Веди мир и всех NPC, сохраняя канон.'}:null);
+renderChat();
+let box=$('#messages'),loading=document.createElement('div');loading.className='msg';
+let who=document.createElement('div');who.className='who';who.textContent=character?.name||ch.universe||'Персонаж';
+let status=document.createElement('div');status.textContent='Подбирает слова…';loading.append(who,status);box?.append(loading);if(box)box.scrollTop=box.scrollHeight;
+try{
+const aiMessages=ch.messages.slice(-24);
+if(aiMessages.length){
+aiMessages[0]={...aiMessages[0],scenario:ch.scenario||aiMessages[0].scenario,scenarioSetup:ch.scenarioSetup||aiMessages[0].scenarioSetup,universe:ch.universe||aiMessages[0].universe,chapter:ch.chapter||aiMessages[0].chapter,userCharacterName:ch.userCharacterName||aiMessages[0].userCharacterName,userCharacterAppearance:ch.userCharacterAppearance||aiMessages[0].userCharacterAppearance,userCharacterPersonality:ch.userCharacterPersonality||aiMessages[0].userCharacterPersonality};
+}
+const answer=await hordeReply(character,aiMessages,s=>{status.textContent=s;});
+ch.messages.push({role:'assistant',content:answer});
+}catch(err){
+ch.messages.push({role:'assistant',retry:true,content:'Не получилось получить ответ: '+(err?.message||'сервис временно недоступен')});
+}finally{
+busyChats.delete(ch.id);save();if(ch.id===activeChat)renderChat();else renderChats();
+}
+}
+function retryLastReply(){
+const ch=chats.find(x=>x.id===activeChat);if(!ch||busyChats.has(ch.id))return;
+if(ch.messages[ch.messages.length-1]?.retry)ch.messages.pop();
+save();runAIResponse(ch);
+}
+async function sendMessage(){
+let input=$('#messageInput'),content=input?.value.trim();if(!content)return;
+let ch=chats.find(x=>x.id===activeChat);if(!ch||busyChats.has(ch.id))return;
+ch.messages.push({role:'user',content});input.value='';input.style.height='auto';save();runAIResponse(ch);
+}
 $('#uploadInput').onchange=async e=>{for(let f of e.target.files){if(!f.type.startsWith('image/'))continue;gallery.unshift({id:crypto.randomUUID(),name:f.name,data:await fileData(f)});}save();renderGallery();e.target.value=''}
 function renderGallery(){let el=$('#galleryGrid');el.innerHTML='';if(!gallery.length){el.innerHTML='<div class="empty">Галерея пока пуста. Загрузи изображение или создай новое.</div>';return}gallery.forEach(g=>{let d=document.createElement('div');d.className='card';let img=document.createElement('img');img.src=g.data;img.style='width:100%;height:220px;object-fit:cover;border-radius:12px';let p=document.createElement('p');p.className='muted';p.textContent=g.name;let b=document.createElement('button');b.className='secondary';b.textContent='Удалить';b.onclick=()=>{gallery=gallery.filter(x=>x.id!==g.id);save();renderGallery()};d.append(img,p,b);el.append(d)})}
 async function generateImage(){let prompt=$('#imagePrompt').value.trim();if(!prompt){$('#imageStatus').textContent='Сначала опиши изображение.';return}$('#generateBtn').disabled=true;$('#imageStatus').textContent='Создаём изображение…';try{let r=await fetch('/api/image',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({prompt})});if(!r.ok)throw new Error();let data=await r.json();gallery.unshift({id:crypto.randomUUID(),name:prompt.slice(0,50),data:data.dataUrl});save();closeModal('imageModal');showPage('gallery');renderGallery()}catch(e){$('#imageStatus').textContent='Генерация пока не подключена. Настрой сервер и API-ключ по инструкции README.'}finally{$('#generateBtn').disabled=false}}
