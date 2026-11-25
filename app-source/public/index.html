@@ -304,23 +304,69 @@ answer=answer.replace(/^(?:(?:sure|well|okay|ok|of course|here(?:'s| is)|as an a
 return answer;
 }
 async function hordeFallback(prompt,onProgress){
-  onProgress?.('Подключаю резервную модель…');
-  const headers={'Content-Type':'application/json','apikey':'0000000000','Client-Agent':'DalmaRoleplay:1.2:github.com/gensuegfjrgdhr-ui/Dalma-roleplay1'};
-  const start=await fetch('https://aihorde.net/api/v2/generate/text/async',{method:'POST',headers,body:JSON.stringify({prompt,params:{max_length:220,max_context_length:3072,temperature:.78,top_p:.9,top_k:40,rep_pen:1.12,rep_pen_range:512},models:[],slow_workers:true})});
-  if(!start.ok)throw new Error('Резервный ИИ пока недоступен ('+start.status+').');
-  const job=await start.json();
-  if(!job.id)throw new Error('Резервная модель не приняла запрос.');
-  for(let i=0;i<60;i++){
-    await new Promise(resolve=>setTimeout(resolve,1500));
-    onProgress?.('Готовит ответ… '+Math.round((i+1)/60*100)+'%');
-    const poll=await fetch('https://aihorde.net/api/v2/generate/text/status/'+encodeURIComponent(job.id),{headers:{'Client-Agent':'DalmaRoleplay:1.2:github.com/gensuegfjrgdhr-ui/Dalma-roleplay1'}});
-    if(!poll.ok)continue;
-    const state=await poll.json();
-    const text=state.generations?.[0]?.text;
-    if(text)return cleanRoleplayAnswer(text);
-    if(state.faulted)throw new Error('Резервная модель не смогла выполнить запрос.');
+  onProgress?.('Отправляю запрос резервному ИИ…');
+  const headers={
+    'Content-Type':'application/json',
+    'apikey':'0000000000',
+    'Client-Agent':'DalmaRoleplay:1.3:github.com/gensuegfjrgdhr-ui/Dalma-roleplay1'
+  };
+  let start;
+  try{
+    start=await fetch('https://aihorde.net/api/v2/generate/text/async',{
+      method:'POST',
+      headers,
+      body:JSON.stringify({
+        prompt,
+        params:{
+          max_length:220,
+          max_context_length:3072,
+          temperature:.78,
+          top_p:.9,
+          top_k:40,
+          rep_pen:1.12,
+          rep_pen_range:512
+        },
+        models:[],
+        slow_workers:true,
+        extra_slow_workers:false
+      })
+    });
+  }catch{
+    throw new Error('Не удалось связаться с сервисом ИИ. Проверь подключение к интернету и попробуй ещё раз.');
   }
-  throw new Error('Резервный ИИ отвечает слишком долго. Попробуй ещё раз.');
+  let job={};
+  try{job=await start.json()}catch{}
+  if(!start.ok){
+    const detail=job.message||job.error||('код '+start.status);
+    throw new Error('Сервис ИИ отклонил запрос: '+detail);
+  }
+  if(!job.id)throw new Error('Сервис ИИ не выдал номер запроса. Попробуй ещё раз.');
+
+  // AI Horde can keep anonymous requests in its queue for several minutes.
+  // Its text requests remain valid for up to 20 minutes, so don't abandon them after 90 seconds.
+  for(let i=0;i<180;i++){
+    await new Promise(resolve=>setTimeout(resolve,3000));
+    if(i%4===0){
+      const minutes=Math.floor((i+1)*3/60);
+      onProgress?.(minutes===0?'Запрос в очереди, жду свободную модель…':'ИИ обрабатывает запрос… '+minutes+' мин.');
+    }
+    let poll;
+    try{
+      poll=await fetch('https://aihorde.net/api/v2/generate/text/status/'+encodeURIComponent(job.id),{
+        headers:{'Client-Agent':headers['Client-Agent']}
+      });
+    }catch{
+      continue;
+    }
+    if(!poll.ok)continue;
+    const state=await poll.json().catch(()=>({}));
+    const generated=state.generations?.find(x=>typeof x.text==='string'&&x.text.trim());
+    if(generated)return cleanRoleplayAnswer(generated.text);
+    if(state.faulted){
+      throw new Error(state.fault_reason||'Сервис ИИ не смог обработать запрос. Попробуй отправить сообщение ещё раз.');
+    }
+  }
+  throw new Error('Сервис ИИ пока не нашёл свободную модель. Попробуй ещё раз чуть позже.');
 }
 async function hordeReply(character,messages,onProgress){
   const prompt=buildRoleplayPrompt(character,messages);
