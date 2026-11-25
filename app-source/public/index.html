@@ -170,7 +170,19 @@ document.querySelectorAll('[data-page]').forEach(b=>b.onclick=()=>showPage(b.dat
 
 const avatarCache=new Map();
 const avatarPending=new Map();
-let avatarRequestQueue=Promise.resolve();
+let avatarActiveLookups=0;
+const avatarLookupWaiters=[];
+async function withAvatarLookupSlot(work){
+ if(avatarActiveLookups>=8) await new Promise(resolve=>avatarLookupWaiters.push(resolve));
+ avatarActiveLookups++;
+ try{return await work()}
+ finally{avatarActiveLookups--;const next=avatarLookupWaiters.shift();if(next)next()}
+}
+function avatarFetch(url){
+ const controller=new AbortController();
+ const timer=setTimeout(()=>controller.abort(),9000);
+ return fetch(url,{signal:controller.signal}).finally(()=>clearTimeout(timer));
+}
 const animeAvatarNames={
  'gojo':'Satoru Gojo','yuji':'Yuji Itadori','nezuko':'Nezuko Kamado','luffy':'Monkey D. Luffy','mikasa':'Mikasa Ackerman','sailor-moon':'Usagi Tsukino',
  'naruto':'Naruto Uzumaki','kakashi':'Kakashi Hatake','sakura':'Sakura Haruno','sasuke':'Sasuke Uchiha','itachi':'Itachi Uchiha','shikamaru':'Shikamaru Nara',
@@ -186,7 +198,7 @@ function setAvatarImage(node,url,name,cacheKey){
  if(!img){img=document.createElement('img');img.alt=name||'Аватар персонажа';img.loading='lazy';node.replaceChildren(img)}
  img.referrerPolicy='no-referrer';
  img.onload=()=>{node.classList.add('has-avatar')};
- img.onerror=()=>{img.remove();node.classList.remove('has-avatar');if(cacheKey){avatarCache.delete('rd_avatar_v6_'+cacheKey);try{localStorage.removeItem('rd_avatar_v6_'+cacheKey)}catch(e){}}node.textContent=(name||'✦').slice(0,1)};
+ img.onerror=()=>{img.remove();node.classList.remove('has-avatar');if(cacheKey){avatarCache.delete('rd_avatar_v7_'+cacheKey);try{localStorage.removeItem('rd_avatar_v7_'+cacheKey)}catch(e){}}node.textContent=(name||'✦').slice(0,1)};
  img.src=url;
 }
 const avatarPageTitles={
@@ -316,13 +328,12 @@ async function resolveCharacterAvatar(c){
  if(!c)return '';
  if(c.image||c.avatar)return c.image||c.avatar;
  const key=c.id||c.name;
- const cacheKey='rd_avatar_v6_'+key;
+ const cacheKey='rd_avatar_v7_'+key;
  if(avatarCache.has(cacheKey))return avatarCache.get(cacheKey);
  try{const saved=localStorage.getItem(cacheKey);if(saved){avatarCache.set(cacheKey,saved);return saved}}catch(e){}
  if(avatarPending.has(cacheKey))return avatarPending.get(cacheKey);
- const task=avatarRequestQueue.then(async()=>{
+ const task=withAvatarLookupSlot(async()=>{
   try{
-   await new Promise(resolve=>setTimeout(resolve,350));
    let url='';
    const normalize=s=>String(s||'').toLocaleLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9а-яё]/g,'');
    const isAnime=c.category==='Аниме';
@@ -330,15 +341,14 @@ async function resolveCharacterAvatar(c){
     const queries=[animeAvatarNames[c.id],c.name].filter(Boolean);
     for(const q of queries){
      try{
-      const r=await fetch('https://jikan.lucashdo.com/v1/characters?q='+encodeURIComponent(q));
+      const r=await avatarFetch('https://jikan.lucashdo.com/v1/characters?q='+encodeURIComponent(q));
       if(r.ok){const j=await r.json();const list=j.data||[];const exact=list.find(x=>normalize(x.name)===normalize(q));const chosen=exact||list.find(x=>normalize(x.name).includes(normalize(q)))||list[0];url=chosen?.imageUrl||''}
       if(!url){
-       const fallback=await fetch('https://api.jikan.moe/v4/characters?q='+encodeURIComponent(q)+'&limit=8');
+       const fallback=await avatarFetch('https://api.jikan.moe/v4/characters?q='+encodeURIComponent(q)+'&limit=8');
        if(fallback.ok){const j=await fallback.json();const list=j.data||[];const exact=list.find(x=>normalize(x.name)===normalize(q));const chosen=exact||list.find(x=>normalize(x.name).includes(normalize(q)))||list[0];url=chosen?.images?.webp?.image_url||chosen?.images?.jpg?.image_url||''}
       }
       if(url)break;
      }catch(e){}
-     await new Promise(resolve=>setTimeout(resolve,300));
     }
    }
    // Точное название из подготовленного списка страниц, затем поиск по имени
@@ -348,7 +358,7 @@ async function resolveCharacterAvatar(c){
     if(title){
      try{
       const api='https://en.wikipedia.org/w/api.php?action=query&titles='+encodeURIComponent(title)+'&redirects=1&prop=pageimages&piprop=thumbnail&pithumbsize=480&format=json&origin=*';
-      const r=await fetch(api);
+      const r=await avatarFetch(api);
       if(r.ok){const j=await r.json();url=Object.values(j.query?.pages||{}).find(p=>p.thumbnail?.source)?.thumbnail?.source||''}
      }catch(e){}
     }
@@ -375,7 +385,6 @@ async function resolveCharacterAvatar(c){
    return url;
   }catch(e){return ''}
  });
- avatarRequestQueue=task.catch(()=>{});
  avatarPending.set(cacheKey,task);
  const result=await task;avatarPending.delete(cacheKey);return result;
 }
