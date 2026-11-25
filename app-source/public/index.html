@@ -302,20 +302,41 @@ answer=answer.replace(/^(?:###\s*(?:ответ|продолжи историю)[
 answer=answer.replace(/^(?:assistant|персонаж)\s*:\s*/i,'').trim();
 return answer;
 }
+async function hordeFallback(prompt,onProgress){
+  onProgress?.('Подключаю резервную модель…');
+  const headers={'Content-Type':'application/json','apikey':'0000000000','Client-Agent':'DalmaRoleplay:1.2:github.com/gensuegfjrgdhr-ui/Dalma-roleplay1'};
+  const start=await fetch('https://aihorde.net/api/v2/generate/text/async',{method:'POST',headers,body:JSON.stringify({prompt,params:{max_length:220,max_context_length:3072,temperature:.78,top_p:.9,top_k:40,rep_pen:1.12,rep_pen_range:512},models:[],slow_workers:true})});
+  if(!start.ok)throw new Error('Резервный ИИ пока недоступен ('+start.status+').');
+  const job=await start.json();
+  if(!job.id)throw new Error('Резервная модель не приняла запрос.');
+  for(let i=0;i<60;i++){
+    await new Promise(resolve=>setTimeout(resolve,1500));
+    onProgress?.('Готовит ответ… '+Math.round((i+1)/60*100)+'%');
+    const poll=await fetch('https://aihorde.net/api/v2/generate/text/status/'+encodeURIComponent(job.id),{headers:{'Client-Agent':'DalmaRoleplay:1.2:github.com/gensuegfjrgdhr-ui/Dalma-roleplay1'}});
+    if(!poll.ok)continue;
+    const state=await poll.json();
+    const text=state.generations?.[0]?.text;
+    if(text)return cleanRoleplayAnswer(text);
+    if(state.faulted)throw new Error('Резервная модель не смогла выполнить запрос.');
+  }
+  throw new Error('Резервный ИИ отвечает слишком долго. Попробуй ещё раз.');
+}
 async function hordeReply(character,messages,onProgress){
-  onProgress?.('Подключаюсь к Groq…');
   const prompt=buildRoleplayPrompt(character,messages);
-  const response=await fetch('/api/chat',{
-    method:'POST',
-    headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({character,messages,prompt})
-  });
-  let data={};
-  try{data=await response.json()}catch{}
-  if(!response.ok)throw new Error(data.error||'ИИ временно недоступен ('+response.status+').');
-  const answer=cleanRoleplayAnswer(data.text||'');
-  if(answer.length>1)return answer;
-  throw new Error('Модель не прислала текст. Попробуй повторить.');
+  onProgress?.('Подключаю основной ИИ…');
+  try{
+    const response=await fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({character,messages,prompt})});
+    let data={};try{data=await response.json()}catch{}
+    if(response.ok){
+      const answer=cleanRoleplayAnswer(data.text||'');
+      if(answer.length>1)return answer;
+      throw new Error('Модель не прислала текст. Попробуй повторить.');
+    }
+    if(response.status!==404&&response.status!==503)throw new Error(data.error||'ИИ временно недоступен ('+response.status+').');
+  }catch(error){
+    if(error?.name!=='TypeError')throw error;
+  }
+  return await hordeFallback(prompt,onProgress);
 }
 let busyChats=new Set();
 async function runAIResponse(ch){
