@@ -64,6 +64,7 @@ jobs:
             OUTPUT_DIR="$(dirname "$INDEX_FILE")"
           fi
 
+          if [ -f "$GITHUB_WORKSPACE/app-source/public/index.html" ]; then OUTPUT_DIR="$GITHUB_WORKSPACE/app-source/public"; fi
           test -f "$OUTPUT_DIR/index.html"
           mkdir -p "$GITHUB_WORKSPACE/_site"
           cp -a "$OUTPUT_DIR"/. "$GITHUB_WORKSPACE/_site"/
@@ -76,11 +77,13 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p app-source/public
-          cp extracted/dalma-deploy/server.js app-source/server.js
-          cp extracted/dalma-deploy/package.json app-source/package.json
-          if [ -f extracted/dalma-deploy/README.md ]; then cp extracted/dalma-deploy/README.md app-source/README.md; fi
-          cp -a extracted/dalma-deploy/public/. app-source/public/
+          if [ ! -f app-source/server.js ]; then
+            mkdir -p app-source/public
+            cp extracted/dalma-deploy/server.js app-source/server.js
+            cp extracted/dalma-deploy/package.json app-source/package.json
+            if [ -f extracted/dalma-deploy/README.md ]; then cp extracted/dalma-deploy/README.md app-source/README.md; fi
+            cp -a extracted/dalma-deploy/public/. app-source/public/
+          fi
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add app-source
