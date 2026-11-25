@@ -303,37 +303,19 @@ answer=answer.replace(/^(?:assistant|персонаж)\s*:\s*/i,'').trim();
 return answer;
 }
 async function hordeReply(character,messages,onProgress){
-const prompt=buildRoleplayPrompt(character,messages);
-const headers={'Content-Type':'application/json','apikey':'0000000000','Client-Agent':'DalmaRoleplay:1.1:github.com/gensuegfjrgdhr-ui/Dalma-roleplay1'};
-const submit=await fetch('https://aihorde.net/api/v2/generate/text/async',{method:'POST',headers,body:JSON.stringify({
-prompt,
-params:{max_length:220,max_context_length:3072,temperature:0.78,top_p:0.9,top_k:40,rep_pen:1.12,rep_pen_range:512},
-models:[],
-slow_workers:true
-})});
-if(!submit.ok){let detail='';try{detail=(await submit.json()).message||''}catch{}throw new Error(detail||'Сервис ИИ не принял запрос ('+submit.status+').');}
-const job=await submit.json();if(!job.id)throw new Error('Сервис ИИ не выдал номер запроса.');
-const statusHeaders={'apikey':'0000000000','Client-Agent':headers['Client-Agent']};
-for(let i=0;i<85;i++){
-await new Promise(resolve=>setTimeout(resolve,1400));
-let statusRes;
-try{statusRes=await fetch('https://aihorde.net/api/v2/generate/text/status/'+encodeURIComponent(job.id),{headers:statusHeaders});}
-catch(err){if(i%5===0)onProgress?.('Связь с ИИ прервалась, повторяю проверку…');continue;}
-if(!statusRes.ok){if(statusRes.status>=500||statusRes.status===429){if(i%5===0)onProgress?.('Сервис временно занят, жду ответ…');continue;}throw new Error('Не удалось проверить очередь ИИ ('+statusRes.status+').');}
-const status=await statusRes.json();
-if(status.done){
-const answer=cleanRoleplayAnswer(status.generations?.map(x=>x.text||'').join('\n'));
-if(answer.length>1)return answer;
-throw new Error('Модель завершила запрос, но не прислала текст. Попробуй повторить.');
-}
-if(status.faulted)throw new Error('Задание ИИ завершилось с ошибкой. Попробуй ещё раз.');
-if(i%4===0){
-if(Number.isFinite(status.wait_time)&&status.wait_time>0)onProgress?.('Персонаж готовит ответ · примерно '+Math.ceil(status.wait_time)+' сек.');
-else if(status.queue_position>0)onProgress?.('В очереди ИИ · позиция '+status.queue_position);
-else onProgress?.('Персонаж печатает…');
-}
-}
-throw new Error('Ответ задерживается дольше обычного. Можно нажать «Повторить» — твоя реплика сохранена.');
+  onProgress?.('Подключаюсь к Groq…');
+  const prompt=buildRoleplayPrompt(character,messages);
+  const response=await fetch('/api/chat',{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({character,messages,prompt})
+  });
+  let data={};
+  try{data=await response.json()}catch{}
+  if(!response.ok)throw new Error(data.error||'ИИ временно недоступен ('+response.status+').');
+  const answer=cleanRoleplayAnswer(data.text||'');
+  if(answer.length>1)return answer;
+  throw new Error('Модель не прислала текст. Попробуй повторить.');
 }
 let busyChats=new Set();
 async function runAIResponse(ch){
