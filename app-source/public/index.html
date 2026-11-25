@@ -319,21 +319,28 @@ async function resolveCharacterAvatar(c){
  if(avatarCache.has(key))return avatarCache.get(key);
  try{const saved=localStorage.getItem('rd_avatar_'+key);if(saved){avatarCache.set(key,saved);return saved}}catch(e){}
  if(avatarPending.has(key))return avatarPending.get(key);
- const task=avatarRequestQueue.then(async()=>{
+ const task=(async()=>{
   try{
-   await new Promise(resolve=>setTimeout(resolve,250));
    let url='';
    // Curated exact article mapping: one known page per catalog character, no fuzzy name guessing.
    const pageTitle=avatarPageTitles[c.id];
    if(pageTitle){
     try{
-     const endpoint='https://en.wikipedia.org/api/rest_v1/page/summary/'+encodeURIComponent(pageTitle);
-     const response=await fetch(endpoint,{headers:{'accept':'application/json'}});
+     const endpoint='https://en.wikipedia.org/w/api.php?action=query&titles='+encodeURIComponent(pageTitle)+'&redirects=1&prop=pageimages&piprop=thumbnail&pithumbsize=480&format=json&origin=*';
+     const response=await fetch(endpoint);
      if(response.ok){
       const page=await response.json();
-      url=page.originalimage?.source||page.thumbnail?.source||'';
+      const pages=Object.values(page.query?.pages||{});
+      url=pages.find(x=>x.thumbnail?.source)?.thumbnail?.source||'';
      }
     }catch(e){}
+    if(!url){
+     try{
+      const endpoint='https://en.wikipedia.org/api/rest_v1/page/summary/'+encodeURIComponent(pageTitle);
+      const response=await fetch(endpoint,{headers:{'accept':'application/json'}});
+      if(response.ok){const page=await response.json();url=page.originalimage?.source||page.thumbnail?.source||''}
+     }catch(e){}
+    }
    }
    const isAnime=c.category==='Аниме';
    if(isAnime){
@@ -382,8 +389,8 @@ async function resolveCharacterAvatar(c){
    if(url){avatarCache.set(key,url);try{localStorage.setItem('rd_avatar_'+key,url)}catch(e){}}
    return url;
   }catch(e){return ''}
- });
- avatarRequestQueue=task.catch(()=>{});
+ })();
+ avatarRequestQueue=Promise.resolve();
  avatarPending.set(key,task);
  const result=await task;avatarPending.delete(key);return result;
 }
