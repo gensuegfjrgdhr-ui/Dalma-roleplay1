@@ -21,12 +21,7 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
 
-      - name: Set up Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-
-      - name: Extract and build site
+      - name: Prepare static site
         shell: bash
         run: |
           set -euo pipefail
@@ -36,26 +31,34 @@ jobs:
           PACKAGE_JSON="$(find extracted -name package.json -not -path '*/node_modules/*' -print -quit || true)"
           if [ -n "$PACKAGE_JSON" ]; then
             APP_DIR="$(dirname "$PACKAGE_JSON")"
-            cd "$APP_DIR"
-            if [ -f package-lock.json ]; then
-              npm ci
-            else
-              npm install
-            fi
-            if node -e "const p=require('./package.json'); process.exit(p.scripts && p.scripts.build ? 0 : 1)"; then
-              npm run build
-              if [ -d dist ]; then OUTPUT_DIR="$APP_DIR/dist"
-              elif [ -d build ]; then OUTPUT_DIR="$APP_DIR/build"
-              elif [ -d out ]; then OUTPUT_DIR="$APP_DIR/out"
-              else echo "Build completed but no dist/build/out folder exists"; exit 1
-              fi
-            else
+
+            # This archive is a Node project whose browser-ready site is in public/.
+            # GitHub Pages serves static files, so publish public/ rather than server.js.
+            if [ -f "$APP_DIR/public/index.html" ]; then
+              OUTPUT_DIR="$APP_DIR/public"
+            elif [ -f "$APP_DIR/index.html" ]; then
               OUTPUT_DIR="$APP_DIR"
+            else
+              cd "$APP_DIR"
+              if [ -f package-lock.json ]; then npm ci; else npm install; fi
+              if node -e "const p=require('./package.json'); process.exit(p.scripts && p.scripts.build ? 0 : 1)"; then
+                npm run build
+                if [ -f dist/index.html ]; then OUTPUT_DIR="$APP_DIR/dist"
+                elif [ -f build/index.html ]; then OUTPUT_DIR="$APP_DIR/build"
+                elif [ -f out/index.html ]; then OUTPUT_DIR="$APP_DIR/out"
+                else
+                  echo "Build completed, but no supported output folder with index.html was found."
+                  exit 1
+                fi
+              else
+                echo "No public/index.html, root index.html, or build script was found."
+                exit 1
+              fi
             fi
           else
             INDEX_FILE="$(find extracted -name index.html -print -quit || true)"
             if [ -z "$INDEX_FILE" ]; then
-              echo "No package.json or index.html found in the uploaded ZIP."
+              echo "No index.html was found in the uploaded ZIP."
               exit 1
             fi
             OUTPUT_DIR="$(dirname "$INDEX_FILE")"
@@ -65,6 +68,8 @@ jobs:
           mkdir -p "$GITHUB_WORKSPACE/_site"
           cp -a "$OUTPUT_DIR"/. "$GITHUB_WORKSPACE/_site"/
           touch "$GITHUB_WORKSPACE/_site/.nojekyll"
+          echo "Publishing files from: $OUTPUT_DIR"
+          find "$GITHUB_WORKSPACE/_site" -maxdepth 2 -type f -print
 
       - name: Configure Pages
         uses: actions/configure-pages@v5
