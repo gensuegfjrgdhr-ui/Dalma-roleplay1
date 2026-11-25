@@ -162,6 +162,7 @@ document.querySelectorAll('[data-page]').forEach(b=>b.onclick=()=>showPage(b.dat
 
 const avatarCache=new Map();
 const avatarPending=new Map();
+let avatarRequestQueue=Promise.resolve();
 const animeAvatarNames={
  'gojo':'Satoru Gojo','yuji':'Yuji Itadori','nezuko':'Nezuko Kamado','luffy':'Monkey D. Luffy','mikasa':'Mikasa Ackerman','sailor-moon':'Usagi Tsukino',
  'naruto':'Naruto Uzumaki','kakashi':'Kakashi Hatake','sakura':'Sakura Haruno','sasuke':'Sasuke Uchiha','itachi':'Itachi Uchiha','shikamaru':'Shikamaru Nara',
@@ -182,9 +183,11 @@ async function resolveCharacterAvatar(c){
  if(c.image||c.avatar)return c.image||c.avatar;
  const key=c.id||c.name;
  if(avatarCache.has(key))return avatarCache.get(key);
+ try{const saved=localStorage.getItem('rd_avatar_'+key);if(saved){avatarCache.set(key,saved);return saved}}catch(e){}
  if(avatarPending.has(key))return avatarPending.get(key);
- const task=(async()=>{
+ const task=avatarRequestQueue.then(async()=>{
   try{
+   await new Promise(resolve=>setTimeout(resolve,450));
    let url='';
    const isAnime=c.category==='Аниме';
    if(isAnime){
@@ -196,10 +199,11 @@ async function resolveCharacterAvatar(c){
     const r=await fetch(api);
     if(r.ok){const j=await r.json();const pages=Object.values(j.query?.pages||{});url=pages.find(p=>p.thumbnail?.source)?.thumbnail?.source||''}
    }
-   if(url)avatarCache.set(key,url);
+   if(url){avatarCache.set(key,url);try{localStorage.setItem('rd_avatar_'+key,url)}catch(e){}}
    return url;
   }catch(e){return ''}
- })();
+ });
+ avatarRequestQueue=task.catch(()=>{});
  avatarPending.set(key,task);
  const result=await task;avatarPending.delete(key);return result;
 }
