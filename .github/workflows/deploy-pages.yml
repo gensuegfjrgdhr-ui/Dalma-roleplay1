@@ -1,0 +1,86 @@
+name: Deploy Dalma Roleplay to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Extract and build site
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p extracted
+          unzip -q dalma_render_deploy.zip -d extracted
+
+          PACKAGE_JSON="$(find extracted -name package.json -not -path '*/node_modules/*' -print -quit || true)"
+          if [ -n "$PACKAGE_JSON" ]; then
+            APP_DIR="$(dirname "$PACKAGE_JSON")"
+            cd "$APP_DIR"
+            if [ -f package-lock.json ]; then
+              npm ci
+            else
+              npm install
+            fi
+            if node -e "const p=require('./package.json'); process.exit(p.scripts && p.scripts.build ? 0 : 1)"; then
+              npm run build
+              if [ -d dist ]; then OUTPUT_DIR="$APP_DIR/dist"
+              elif [ -d build ]; then OUTPUT_DIR="$APP_DIR/build"
+              elif [ -d out ]; then OUTPUT_DIR="$APP_DIR/out"
+              else echo "Build completed but no dist/build/out folder exists"; exit 1
+              fi
+            else
+              OUTPUT_DIR="$APP_DIR"
+            fi
+          else
+            INDEX_FILE="$(find extracted -name index.html -print -quit || true)"
+            if [ -z "$INDEX_FILE" ]; then
+              echo "No package.json or index.html found in the uploaded ZIP."
+              exit 1
+            fi
+            OUTPUT_DIR="$(dirname "$INDEX_FILE")"
+          fi
+
+          test -f "$OUTPUT_DIR/index.html"
+          mkdir -p "$GITHUB_WORKSPACE/_site"
+          cp -a "$OUTPUT_DIR"/. "$GITHUB_WORKSPACE/_site"/
+          touch "$GITHUB_WORKSPACE/_site/.nojekyll"
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
