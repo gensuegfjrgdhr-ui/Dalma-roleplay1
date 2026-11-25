@@ -184,7 +184,10 @@ function setAvatarImage(node,url,name){
  if(!node||!url)return;
  let img=node.querySelector('img');
  if(!img){img=document.createElement('img');img.alt=name||'Аватар персонажа';img.loading='lazy';node.replaceChildren(img)}
- img.src=url;img.onerror=()=>{img.remove();node.textContent=(name||'✦').slice(0,1)}
+ img.referrerPolicy='no-referrer';
+ img.onload=()=>{node.classList.add('has-avatar')};
+ img.onerror=()=>{img.remove();node.classList.remove('has-avatar');node.textContent=(name||'✦').slice(0,1)};
+ img.src=url;
 }
 async function resolveCharacterAvatar(c){
  if(!c)return '';
@@ -202,8 +205,12 @@ async function resolveCharacterAvatar(c){
     const queries=[animeAvatarNames[c.id],c.name].filter(Boolean);
     for(const q of queries){
      try{
-      const r=await fetch('https://api.jikan.moe/v4/characters?q='+encodeURIComponent(q)+'&limit=5');
-      if(r.ok){const j=await r.json();const found=(j.data||[]).find(x=>x.images?.webp?.image_url||x.images?.jpg?.image_url);url=found?.images?.webp?.image_url||found?.images?.jpg?.image_url||''}
+      const r=await fetch('https://jikan.lucashdo.com/v1/characters?q='+encodeURIComponent(q));
+      if(r.ok){const j=await r.json();const found=(j.data||[]).find(x=>x.imageUrl);url=found?.imageUrl||''}
+      if(!url){
+       const fallback=await fetch('https://api.jikan.moe/v4/characters?q='+encodeURIComponent(q)+'&limit=5');
+       if(fallback.ok){const j=await fallback.json();const found=(j.data||[]).find(x=>x.images?.webp?.image_url||x.images?.jpg?.image_url);url=found?.images?.webp?.image_url||found?.images?.jpg?.image_url||''}
+      }
       if(url)break;
      }catch(e){}
      await new Promise(resolve=>setTimeout(resolve,350));
