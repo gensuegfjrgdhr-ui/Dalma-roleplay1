@@ -31,9 +31,6 @@ jobs:
           PACKAGE_JSON="$(find extracted -name package.json -not -path '*/node_modules/*' -print -quit || true)"
           if [ -n "$PACKAGE_JSON" ]; then
             APP_DIR="$(dirname "$PACKAGE_JSON")"
-
-            # This archive is a Node project whose browser-ready site is in public/.
-            # GitHub Pages serves static files, so publish public/ rather than server.js.
             if [ -f "$APP_DIR/public/index.html" ]; then
               OUTPUT_DIR="$APP_DIR/public"
             elif [ -f "$APP_DIR/index.html" ]; then
@@ -67,6 +64,19 @@ jobs:
           test -f "$OUTPUT_DIR/index.html"
           mkdir -p "$GITHUB_WORKSPACE/_site"
           cp -a "$OUTPUT_DIR"/. "$GITHUB_WORKSPACE/_site"/
+          cp "$GITHUB_WORKSPACE/access-gate.js" "$GITHUB_WORKSPACE/_site/access-gate.js"
+          python3 - <<'PY'
+          from pathlib import Path
+          page = Path("_site/index.html")
+          html = page.read_text(encoding="utf-8")
+          script = '<script src="./access-gate.js"></script>'
+          if script not in html:
+              if "</body>" in html:
+                  html = html.replace("</body>", script + "\n</body>", 1)
+              else:
+                  html += "\n" + script
+              page.write_text(html, encoding="utf-8")
+          PY
           touch "$GITHUB_WORKSPACE/_site/.nojekyll"
           echo "Publishing files from: $OUTPUT_DIR"
           find "$GITHUB_WORKSPACE/_site" -maxdepth 2 -type f -print
