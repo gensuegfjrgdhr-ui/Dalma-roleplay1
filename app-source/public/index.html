@@ -153,7 +153,7 @@ body.chat-focus #chatsPage #chatArea .composer{flex:0 0 auto!important}
 </main>
 </div>
 <div class="modalback" id="charModal"><div class="modal"><div class="modalhead"><h2>Новый персонаж</h2><button class="close" onclick="closeModal('charModal')">×</button></div>
-<form id="charForm"><div class="field"><label>Имя персонажа</label><input name="name" required maxlength="50" placeholder="Например, Алекс"></div><div class="field"><label>Возраст</label><input name="age" placeholder="Например, 17"></div><div class="field"><label>Характер и манера общения</label><textarea name="personality" placeholder="Ироничный, спокойный, иногда резкий, любит шутить..."></textarea></div><div class="field"><label>Внешность и детали</label><textarea name="appearance" placeholder="Волосы, глаза, одежда, особенности..."></textarea></div><div class="field"><label>Предыстория</label><textarea name="bio" placeholder="Что важно знать о персонаже?"></textarea></div><div class="field"><label>Изображение (необязательно)</label><input name="image" type="file" accept="image/*" id="charImage"><img id="charPreview" class="preview"></div><button class="primary" type="submit">Сохранить персонажа</button></form></div></div>
+<form id="charForm"><div class="field"><label>Имя персонажа</label><input name="name" required maxlength="50" placeholder="Например, Алекс"></div><div class="field"><label>Возраст</label><input name="age" placeholder="Например, 17"></div><div class="field"><label>Характер и манера общения</label><textarea name="personality" placeholder="Ироничный, спокойный, иногда резкий, любит шутить..."></textarea></div><div class="field"><label>Внешность и детали</label><textarea name="appearance" placeholder="Волосы, глаза, одежда, особенности..."></textarea></div><div class="field"><label>Предыстория</label><textarea name="bio" placeholder="Что важно знать о персонаже?"></textarea></div><div class="field"><label>Фото профиля персонажа (необязательно)</label><input name="image" type="file" accept="image/*" id="charImage"><img id="charPreview" class="preview"></div><button class="primary" type="submit">Сохранить персонажа</button></form></div></div>
 <div class="modalback" id="imageModal"><div class="modal"><div class="modalhead"><h2>Генерация изображения</h2><button class="close" onclick="closeModal('imageModal')">×</button></div><div class="field"><label>Что изобразить?</label><textarea id="imagePrompt" placeholder="Подробно опиши персонажа, одежду, позу, фон и стиль..."></textarea></div><button class="primary" id="generateBtn" onclick="generateImage()">✦ Создать изображение</button><p id="imageStatus" class="muted"></p><div class="notice">Для генерации нужен настроенный сервер и API-ключ. Пока можно загружать готовые изображения в галерею.</div></div></div>
 <div class="modalback" id="accessModal"><div class="modal"><h2>Закрытое пространство</h2><p class="muted">Введи код приглашения, который выдал владелец сайта.</p><div class="field"><label>Код доступа</label><input id="inviteCode" type="password" placeholder="Код приглашения"></div><button class="primary" onclick="unlock()">Войти</button><p id="accessError" class="muted"></p></div></div>
 <script>
@@ -197,6 +197,7 @@ function setAvatarImage(node,url,name,cacheKey){
  let img=node.querySelector('img');
  if(!img){img=document.createElement('img');img.alt=name||'Аватар персонажа';img.loading='lazy';node.replaceChildren(img)}
  img.referrerPolicy='no-referrer';
+ img.style.objectPosition=cacheKey==='it-richie'?'85% center':'center';
  img.onload=()=>{node.classList.add('has-avatar')};
  img.onerror=()=>{img.remove();node.classList.remove('has-avatar');if(cacheKey){avatarCache.delete('rd_avatar_v7_'+cacheKey);try{localStorage.removeItem('rd_avatar_v7_'+cacheKey)}catch(e){}}node.textContent=(name||'✦').slice(0,1)};
  img.src=url;
@@ -387,6 +388,13 @@ async function resolveCharacterAvatar(c){
  avatarPending.set(cacheKey,task);
  const result=await task;avatarPending.delete(cacheKey);return result;
 }
+const itAvatarOverrides={
+ 'it-bill':'https://www.aceshowbiz.com/images/still/it-image06.jpg',
+ 'it-beverly':'https://www.aceshowbiz.com/images/still/it-image-still01.jpg',
+ 'it-richie':'https://www.aceshowbiz.com/images/still/it-image-still07.jpg',
+ 'it-eddie':'https://www.aceshowbiz.com/images/still/it-image-still02.jpg',
+ 'it-pennywise':'https://cdn.wickedhorror.com/wp-content/uploads/2016/12/new-it-pennywise.jpg'
+};
 const strangerThingsAvatarOverrides={
  'st-eleven':'https://dnm.nflximg.net/api/v6/a01MIaQTUgSJoLaS_OCn68Eg3hU/AAAAQUr5ej8FJYqN0ePN7DJq4J8pMDFi0XkdGHbcnkT1WHDY6XcJf9MRqOhp0-Tr-MpRWtg8J7u16mWLmH1h6ubILBBhOrGdPuZQlAtvL-Oy7DNuHogsjxpjE51EYz9-T8hn7z5HyxZsTQ5AyMAdct6kBqhwJCM.jpg?r=b8e',
  'st-mike':'https://dnm.nflximg.net/api/v6/a01MIaQTUgSJoLaS_OCn68Eg3hU/AAAAQYCB9n4Ei6kI8GCKYFyDZVWFW1fB8MRoR0tJarIXVt23Wp6n1GQzIfqbdpaxo8xIxSY2FzAPumyW_DjSyhe1sKKiOWMV0zeEIQXjUfyDr0SDKn3OjR-9Y2eG9ch2dKCyeFK_pBsbdr1Kid5AGyjGRPhHQwE.jpg?r=e39',
@@ -399,6 +407,8 @@ const strangerThingsAvatarOverrides={
 };
 function attachCharacterAvatar(node,c){
  if(!node||!c)return;
+ const itCurated=itAvatarOverrides[c.id];
+ if(itCurated){setAvatarImage(node,itCurated,c.name,c.id);return}
  const curated=strangerThingsAvatarOverrides[c.id];
  if(curated){setAvatarImage(node,curated,c.name,c.id);return}
  const own=c.image||c.avatar;
@@ -553,7 +563,25 @@ function startCatalogChat(c){openScenarioPicker(c)}
 $('#catalogSearch').addEventListener('input',renderCatalog);$('#catalogFilter').addEventListener('change',renderCatalog);
 
 function openCharacter(){$('#charModal').classList.add('open')}function openImage(){$('#imageModal').classList.add('open')}function closeModal(id){$('#'+id).classList.remove('open')}
-function fileData(file){return new Promise((res,rej)=>{let r=new FileReader();r.onload=()=>res(r.result);r.onerror=rej;r.readAsDataURL(file)})}
+function fileData(file){return new Promise((resolve,reject)=>{
+ const reader=new FileReader();
+ reader.onerror=reject;
+ reader.onload=()=>{
+  const image=new Image();
+  image.onerror=()=>resolve(reader.result);
+  image.onload=()=>{
+   const max=640,scale=Math.min(1,max/Math.max(image.width,image.height));
+   const canvas=document.createElement('canvas');
+   canvas.width=Math.max(1,Math.round(image.width*scale));
+   canvas.height=Math.max(1,Math.round(image.height*scale));
+   const ctx=canvas.getContext('2d');
+   ctx.drawImage(image,0,0,canvas.width,canvas.height);
+   try{resolve(canvas.toDataURL('image/jpeg',.82))}catch(e){resolve(reader.result)}
+  };
+  image.src=reader.result;
+ };
+ reader.readAsDataURL(file);
+})}
 $('#charImage').onchange=async e=>{let f=e.target.files[0];if(f){$('#charPreview').src=await fileData(f);$('#charPreview').style.display='block'}}
 $('#charForm').onsubmit=async e=>{e.preventDefault();let f=e.target.image.files[0];let image=f?await fileData(f):'';let d=Object.fromEntries(new FormData(e.target).entries());chars.push({id:crypto.randomUUID(),name:d.name,age:d.age,personality:d.personality,appearance:d.appearance,bio:d.bio,image});save();e.target.reset();$('#charPreview').style.display='none';closeModal('charModal');renderChars();showPage('characters')};
 function renderChars(){let el=$('#characterGrid');el.innerHTML='';if(!chars.length){el.innerHTML='<div class="empty">Пока нет персонажей. Создай первого героя ✦</div>';return}chars.forEach(c=>{let d=document.createElement('div');d.className='card';d.innerHTML=`<div class="char"><div class="avatar">${c.image?`<img src="${c.image}">`:'♙'}</div><div><b></b><p></p><span class="tag">Персонаж</span></div></div><p class="muted"></p><button class="secondary">Начать ролку</button> <button class="ghost">Удалить</button>`;d.querySelector('b').textContent=c.name;attachCharacterAvatar(d.querySelector('.avatar'),c);d.querySelector('.char p').textContent=c.age?c.age+' лет':'Возраст не указан';d.querySelector('.muted').textContent=(c.personality||'Характер пока не описан').slice(0,130);d.querySelector('.secondary').onclick=()=>newChat(c.id);d.querySelector('.ghost').onclick=()=>{if(confirm('Удалить персонажа?')){chars=chars.filter(x=>x.id!==c.id);save();renderChars()}};el.append(d)})}
