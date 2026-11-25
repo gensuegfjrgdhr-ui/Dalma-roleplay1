@@ -239,7 +239,7 @@ function attachCharacterAvatar(node,c){
  if(!node||!c)return;
  const own=c.image||c.avatar;
  if(own){setAvatarImage(node,own,c.name);return}
- resolveCharacterAvatar(c).then(url=>{if(url&&node.isConnected)setAvatarImage(node,url,c.name)});
+ resolveCharacterAvatar(c).then(url=>{if(url)setAvatarImage(node,url,c.name)});
 }
 
 const catalog=[
