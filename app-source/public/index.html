@@ -675,12 +675,12 @@ async function hordeFallback(prompt,onProgress){
       body:JSON.stringify({
         prompt,
         params:{
-          max_length:220,
-          max_context_length:3072,
-          temperature:.78,
+          max_length:360,
+          max_context_length:4096,
+          temperature:.75,
           top_p:.9,
           top_k:40,
-          rep_pen:1.12,
+          rep_pen:1.08,
           rep_pen_range:512
         },
         models:[],
@@ -732,7 +732,7 @@ async function hordeReply(character,messages,onProgress){
   try{
     onProgress?.('Проверяю основной ИИ…');
     const controller=new AbortController();
-    const timeout=setTimeout(()=>controller.abort(),12000);
+    const timeout=setTimeout(()=>controller.abort(),45000);
     let response;
     try{
       response=await fetch('/api/chat',{
